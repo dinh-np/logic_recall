@@ -32,7 +32,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data }) 
   const [peekCount, setPeekCount] = useState(0);
 
   // Phân tách từ, dấu câu, khoảng trắng
-  const words = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
+  const words: string[] = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
 
   useEffect(() => {
     if (mode === 'ai') {
