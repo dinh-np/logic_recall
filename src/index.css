@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-krones-bg text-gray-900 font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .touch-target {
+    @apply min-h-[48px] min-w-[48px] flex items-center justify-center;
+  }
+  .diff-correct {
+    @apply text-diff-correct bg-diff-correct/10 px-1 rounded;
+  }
+  .diff-missing {
+    @apply text-diff-missing line-through bg-diff-missing/10 px-1 rounded;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Logic Recall PWA",
+  "short_name": "Logic Recall",
+  "description": "App học tập đa kênh dành cho học sinh tư duy tự nhiên",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#003366",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
