@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MultiModalInput } from './components/MultiModalInput';
 import { SelfReview } from './components/SelfReview';
 import { LogicBridge, type LessonData } from './components/LogicBridge';
-import { Brain, AlertCircle, Library } from 'lucide-react';
+import { Brain, AlertCircle, Library, Plus } from 'lucide-react';
 import { seedDictionary } from './services/dictionaryService';
 import { LibraryModal } from './components/LibraryModal';
 import type { Subject, SavedLesson } from './types/index';
@@ -42,6 +42,14 @@ function App() {
       }));
     }
   }, [step, lessonData, lockedText, currentSubject]);
+
+  const handleNewLesson = () => {
+    localStorage.removeItem('current_active_lesson');
+    setLessonData(null);
+    setLockedText('');
+    setDraftText('');
+    setStep('input');
+  };
 
   const handleInputComplete = (text: string, subject: Subject) => {
     setDraftText(text);
@@ -113,13 +121,22 @@ function App() {
             <p className="text-sm font-medium text-krones-blue">Active Learning for Analytical Minds</p>
           </div>
         </div>
-        <button 
-          onClick={() => setIsLibraryOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-white text-krones-navy border border-krones-blue rounded-full shadow-sm hover:bg-krones-ice transition-colors font-medium"
-        >
-          <Library size={20} className="text-krones-blue" />
-          <span className="hidden sm:inline">Bài đã lưu</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleNewLesson}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-krones-navy border border-krones-blue rounded-full shadow-sm hover:bg-krones-ice transition-colors font-medium"
+          >
+            <Plus size={20} className="text-krones-blue" />
+            <span className="hidden sm:inline">Tạo bài mới</span>
+          </button>
+          <button 
+            onClick={() => setIsLibraryOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-krones-navy border border-krones-blue rounded-full shadow-sm hover:bg-krones-ice transition-colors font-medium"
+          >
+            <Library size={20} className="text-krones-blue" />
+            <span className="hidden sm:inline">Bài đã lưu</span>
+          </button>
+        </div>
       </header>
 
       <main className="max-w-3xl mx-auto">

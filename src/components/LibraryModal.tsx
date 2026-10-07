@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Trash2, FolderOpen, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Trash2, FolderOpen, Loader2, Search } from 'lucide-react';
 import { getLessonsFromFirestore, deleteLessonFromFirestore } from '../services/firebase';
 import type { SavedLesson } from '../types/index';
 
@@ -15,12 +15,24 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose, onOpenLesso
   const [lessons, setLessons] = useState<SavedLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>('Tất cả');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchLessons = async () => {
     setLoading(true);
     try {
       const data = await getLessonsFromFirestore(filter);
-      setLessons(data);
+      
+      const localSaved = localStorage.getItem('saved_lessons_local');
+      let localLessons: SavedLesson[] = [];
+      if (localSaved) {
+        localLessons = JSON.parse(localSaved);
+        if (filter !== 'Tất cả') {
+          localLessons = localLessons.filter(l => l.subject === filter);
+        }
+      }
+      
+      const combined = [...data, ...localLessons].sort((a, b) => b.createdAt - a.createdAt);
+      setLessons(combined);
     } catch (error) {
       console.error("Error fetching lessons:", error);
     } finally {
@@ -35,12 +47,34 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose, onOpenLesso
   const handleDelete = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa bài học này?")) return;
     try {
-      await deleteLessonFromFirestore(id);
+      if (id.startsWith('local_')) {
+        const localSaved = localStorage.getItem('saved_lessons_local');
+        if (localSaved) {
+          const localLessons = JSON.parse(localSaved).filter((l: SavedLesson) => l.id !== id);
+          localStorage.setItem('saved_lessons_local', JSON.stringify(localLessons));
+        }
+      } else {
+        await deleteLessonFromFirestore(id);
+      }
       setLessons(prev => prev.filter(l => l.id !== id));
     } catch (error) {
       console.error("Error deleting lesson:", error);
     }
   };
+
+  const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const filteredLessons = useMemo(() => {
+    if (!searchTerm.trim()) return lessons;
+    const term = normalize(searchTerm.trim());
+    return lessons.filter(lesson => {
+      const matchTitle = normalize(lesson.title || '').includes(term);
+      const matchText = normalize(lesson.originalText || '').includes(term);
+      const matchHanViet = lesson.hanVietDictionary?.some(h => normalize(h.word).includes(term) || normalize(h.rootMeaning).includes(term));
+      const matchKeywords = lesson.keywordsLevel2?.some(k => normalize(k).includes(term));
+      return matchTitle || matchText || matchHanViet || matchKeywords;
+    });
+  }, [lessons, searchTerm]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -54,6 +88,29 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose, onOpenLesso
           <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
             <X size={24} />
           </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="relative flex items-center">
+            <Search className="absolute left-3 text-gray-400" size={20} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên bài, nội dung hoặc từ khóa Hán - Việt..."
+              className="w-full pl-10 pr-10 py-3 rounded-full border border-gray-200 focus:border-krones-blue focus:ring-1 focus:ring-krones-blue outline-none transition-all shadow-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                title="Xóa tìm kiếm"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -84,9 +141,20 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose, onOpenLesso
               <FolderOpen size={64} className="mb-4 opacity-50" />
               <p className="text-lg">Không có bài học nào trong thư viện.</p>
             </div>
+          ) : filteredLessons.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <Search size={64} className="mb-4 opacity-30" />
+              <p className="text-lg font-medium">Không tìm thấy bài học phù hợp với từ khóa này.</p>
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="mt-4 px-4 py-2 text-krones-blue bg-blue-50 rounded-full hover:bg-blue-100 transition-colors font-medium text-sm"
+              >
+                Xóa bộ lọc tìm kiếm
+              </button>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {lessons.map(lesson => (
+              {filteredLessons.map(lesson => (
                 <div key={lesson.id} className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex flex-col">
                   <div className="flex justify-between items-start mb-2">
                     <span className="px-2 py-1 bg-krones-ice text-krones-navy text-xs font-bold rounded-full">
