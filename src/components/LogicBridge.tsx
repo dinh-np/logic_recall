@@ -38,6 +38,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const [peekCount, setPeekCount] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentSubject, setCurrentSubject] = useState<Subject>(subject);
 
   // Dictionary Popup State
   const [dictEntry, setDictEntry] = useState<DictionaryEntry | null>(null);
@@ -119,26 +120,28 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const handleSaveToLibrary = async () => {
     if (isSaved || isSaving) return;
     setIsSaving(true);
+    
+    // Clean data before saving to prevent undefined errors in Firestore
+    const title = originalText.split('\n')[0].substring(0, 50) + (originalText.length > 50 ? '...' : '');
+    const lessonToSave: Omit<SavedLesson, 'id'> = {
+      title: title || 'Bài học mới',
+      subject: currentSubject || 'Other',
+      originalText: originalText || '',
+      formulaSummary: data.formula_summary ? data.formula_summary.map(f => `${f.formula} - ${f.description}`).join('\n') : '',
+      hanVietDictionary: data.han_viet_dictionary ? data.han_viet_dictionary.map(h => ({
+        word: h.word,
+        rootMeaning: h.root_meaning,
+        logicalAnchor: h.logical_anchor
+      })) : [],
+      keywordsLevel1: data.keywords_level_1 || [],
+      keywordsLevel2: data.keywords_level_2 || [],
+      createdAt: Date.now()
+    };
+    
     try {
-      const title = originalText.split('\n')[0].substring(0, 50) + (originalText.length > 50 ? '...' : '');
-      const lessonToSave: Omit<SavedLesson, 'id'> = {
-        title: title || 'Bài học không tên',
-        subject: subject,
-        originalText: originalText,
-        formulaSummary: data.formula_summary ? data.formula_summary.map(f => `${f.formula} - ${f.description}`).join('\n') : '',
-        hanVietDictionary: data.han_viet_dictionary ? data.han_viet_dictionary.map(h => ({
-          word: h.word,
-          rootMeaning: h.root_meaning,
-          logicalAnchor: h.logical_anchor
-        })) : [],
-        keywordsLevel1: data.keywords_level_1 || [],
-        keywordsLevel2: data.keywords_level_2 || [],
-        createdAt: Date.now()
-      };
-      
       await saveLessonToFirestore(lessonToSave);
       setIsSaved(true);
-      // Optional: Add toast notification using standard DOM or state if desired
+      
       const toast = document.createElement('div');
       toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded shadow-lg z-50 animate-in slide-in-from-bottom-5';
       toast.innerText = 'Đã lưu bài học vào Thư viện thành công!';
@@ -148,9 +151,30 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
         setTimeout(() => toast.remove(), 300);
       }, 3000);
 
-    } catch (error) {
-      console.error("Lỗi khi lưu bài học:", error);
-      alert("Lỗi khi lưu bài học. Vui lòng thử lại.");
+    } catch (error: any) {
+      console.error("Lỗi khi lưu Firestore:", error.message || error);
+      
+      // Fallback: Local Storage
+      try {
+        const localSaved = localStorage.getItem('saved_lessons_local');
+        const lessons = localSaved ? JSON.parse(localSaved) : [];
+        lessons.push({ id: 'local_' + Date.now(), ...lessonToSave });
+        localStorage.setItem('saved_lessons_local', JSON.stringify(lessons));
+        
+        setIsSaved(true);
+        
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-4 right-4 bg-yellow-600 text-white px-6 py-3 rounded shadow-lg z-50 animate-in slide-in-from-bottom-5';
+        toast.innerText = 'Đã lưu vào bộ nhớ máy (Offline) thành công!';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.classList.add('fade-out');
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      } catch (localErr) {
+        console.error("Lỗi khi lưu LocalStorage:", localErr);
+        alert(`Không thể lưu bài học: ${error.message || 'Lỗi không xác định'}`);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -201,7 +225,15 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
         <div>
           <h2 className="text-2xl font-bold text-krones-navy flex items-center gap-2">
             LogicBridge 
-            <span className="bg-krones-ice text-krones-blue text-sm px-2 py-1 rounded-full">{subject}</span>
+            <select
+              value={currentSubject}
+              onChange={(e) => setCurrentSubject(e.target.value as Subject)}
+              className="bg-krones-ice text-krones-blue text-sm px-2 py-1 rounded-full outline-none focus:ring-2 focus:ring-krones-blue cursor-pointer border border-transparent hover:border-krones-blue transition-colors font-medium ml-2"
+            >
+              {['GDCD', 'Lịch Sử', 'Địa Lý', 'KHTN', 'Công nghệ', 'Ngữ văn', 'Other'].map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </h2>
         </div>
         <button
