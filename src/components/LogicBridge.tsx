@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Calculator, BrainCircuit } from 'lucide-react';
+import { DictionaryPopup } from './DictionaryPopup';
+import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
 
 export interface HanViet {
   word: string;
@@ -31,6 +33,11 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [peekWords, setPeekWords] = useState<Set<number>>(new Set());
   const [peekCount, setPeekCount] = useState(0);
+
+  // Dictionary Popup State
+  const [dictEntry, setDictEntry] = useState<DictionaryEntry | null>(null);
+  const [dictLoading, setDictLoading] = useState(false);
+  const [popupPos, setPopupPos] = useState<{ x: number, y: number } | null>(null);
 
   // Phân tách từ, dấu câu, khoảng trắng
   const words: string[] = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
@@ -81,6 +88,27 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
         }, 1500);
       }
     }
+  };
+
+  const handleTextSelection = async () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+
+    const text = selection.toString().trim();
+    // Bỏ qua nếu chọn quá dài (không phải 1-2 từ)
+    if (text.length === 0 || text.split(/\s+/).length > 4) return;
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    // Mở popup ngay lập tức với trạng thái loading
+    setPopupPos({ x: rect.left, y: rect.bottom });
+    setDictLoading(true);
+    setDictEntry(null);
+
+    const entry = await lookupTerm(text);
+    setDictEntry(entry);
+    setDictLoading(false);
   };
 
   const renderWord = (word: string, index: number) => {
@@ -208,10 +236,20 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
           )}
         </div>
 
-        <div className="p-6 bg-[#f8fafc] rounded-xl border-2 border-dashed border-gray-300 text-lg leading-loose font-sans text-gray-800 shadow-inner min-h-[300px] whitespace-pre-wrap">
+        <div 
+          className="p-6 bg-[#f8fafc] rounded-xl border-2 border-dashed border-gray-300 text-lg leading-loose font-sans text-gray-800 shadow-inner min-h-[300px] whitespace-pre-wrap relative"
+          onMouseUp={handleTextSelection}
+        >
           {words.map((word, index) => renderWord(word, index))}
         </div>
       </div>
+
+      <DictionaryPopup 
+        entry={dictEntry}
+        loading={dictLoading}
+        position={popupPos}
+        onClose={() => setPopupPos(null)}
+      />
       
     </div>
   );

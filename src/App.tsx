@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MultiModalInput } from './components/MultiModalInput';
 import { SelfReview } from './components/SelfReview';
 import { LogicBridge, type LessonData } from './components/LogicBridge';
 import { Brain, AlertCircle } from 'lucide-react';
+import { seedDictionary } from './services/dictionaryService';
 
 function App() {
   const [step, setStep] = useState<'input' | 'review' | 'locked' | 'analyzed'>('input');
@@ -11,6 +12,10 @@ function App() {
   const [lessonData, setLessonData] = useState<LessonData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [initialMode, setInitialMode] = useState<'ai' | 'manual'>('ai');
+
+  useEffect(() => {
+    seedDictionary().catch(console.error);
+  }, []);
 
   const handleInputComplete = (text: string) => {
     setDraftText(text);
