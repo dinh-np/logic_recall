@@ -57,6 +57,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   const [isMicActive, setIsMicActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanningMessage, setScanningMessage] = useState('Đang đọc và xử lý tài liệu...');
   
   const recognitionRef = useRef<any>(null);
   const isPausedRef = useRef(false);
@@ -177,6 +178,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setScanningMessage('Đang phân tích hình ảnh bằng AI...');
     setIsScanning(true);
 
     if (isMicActive && recognitionRef.current) {
@@ -201,6 +203,11 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      setScanningMessage('Đang đọc tài liệu PDF (có thể mất chút thời gian với file lớn)...');
+    } else {
+      setScanningMessage('Đang xử lý tài liệu...');
+    }
     setIsScanning(true);
 
     if (isMicActive && recognitionRef.current) {
@@ -328,7 +335,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       {isScanning && (
         <div className="flex items-center justify-center gap-3 p-8 mb-4 border-2 border-krones-ice border-dashed rounded bg-krones-bg">
           <Loader2 className="text-krones-blue animate-spin" size={32} />
-          <p className="text-krones-navy font-medium text-lg">Đang đọc và xử lý tài liệu...</p>
+          <p className="text-krones-navy font-medium text-lg">{scanningMessage}</p>
         </div>
       )}
 

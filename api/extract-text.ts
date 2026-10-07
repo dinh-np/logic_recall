@@ -14,18 +14,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { base64Data, mimeType, prompt } = req.body;
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: mimeType || "image/jpeg",
-          data: base64Data
-        }
-      },
-      prompt || "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong tài liệu/ảnh này. Chỉ trả về nội dung văn bản thuần túy, không thêm bất kỳ định dạng hay lời giải thích nào."
-    ]);
     
-    const text = result.response.text();
+    const MODELS_TO_TRY = ["gemini-3.8-flash", "gemini-3.6-flash"];
+
+    const generateWithRetry = async (modelInstance: any, contents: any, maxRetries = 2) => {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          return await modelInstance.generateContent(contents);
+        } catch (err: any) {
+          if (err?.message?.includes("503") && attempt < maxRetries) {
+            console.warn(`Gặp 503, thử lại lần ${attempt + 1} sau 1.5s...`);
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
+          }
+          throw err;
+        }
+      }
+    };
+
+    let text = "";
+    let lastErr = null;
+
+    for (const modelName of MODELS_TO_TRY) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await generateWithRetry(model, [
+          {
+            inlineData: {
+              mimeType: mimeType || "image/jpeg",
+              data: base64Data
+            }
+          },
+          prompt || "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong tài liệu/ảnh này. Chỉ trả về nội dung văn bản thuần túy, không thêm bất kỳ định dạng hay lời giải thích nào."
+        ]);
+        text = result.response.text();
+        if (text) break;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`Model ${modelName} thất bại:`, err.message);
+      }
+    }
+
+    if (!text && lastErr) {
+      throw lastErr;
+    }
+
     return res.status(200).json({ text });
   } catch (error: any) {
     console.error('OCR Error:', error);
