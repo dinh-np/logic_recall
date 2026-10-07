@@ -10,8 +10,9 @@
    ├── [Màn hình Rà Soát & Chỉnh Sửa] ──> Khóa originalText
    │        │
    │        ├──> Lưu tạm vào IndexedDB (Cục bộ thiết bị của con)
-   │        └──> Gửi originalText lên Gemini Flash API
+   │        └──> Gửi (base64) lên Serverless API nội bộ (/api/extract-text)
    │                 │
+   │                 ├──> (Backend Serverless - Ẩn API Key, áp dụng Fallback Models: Gemini 2.5 -> 2.0 -> 1.5)
    │                 ▼
    │           { hanVietList, formula, keywordsLevel1, keywordsLevel2 }
    │                 │
@@ -19,8 +20,8 @@
    │        │
    └── [Màn kiểm tra: Viết tay ra giấy] 
             │
-            ├──> Camera chụp ảnh trang giấy
-            ├──> Gửi { image_blob, originalText } lên Gemini Flash API
+            ├──> Camera chụp ảnh trang giấy (Có nén dung lượng bằng Canvas)
+            ├──> Gửi { image_blob, originalText } lên Serverless API nội bộ (/api/extract-text)
             │        │
             │        ▼
             │     { transcribedText, accuracyScore, matched, missing }
