@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { MultiModalInput } from './components/MultiModalInput';
 import { SelfReview } from './components/SelfReview';
 import { LogicBridge, type LessonData } from './components/LogicBridge';
-import { Brain, AlertCircle } from 'lucide-react';
+import { Brain, AlertCircle, Library } from 'lucide-react';
 import { seedDictionary } from './services/dictionaryService';
+import { LibraryModal } from './components/LibraryModal';
+import type { Subject, SavedLesson } from './types/index';
 
 function App() {
   const [step, setStep] = useState<'input' | 'review' | 'locked' | 'analyzed'>('input');
@@ -12,14 +14,60 @@ function App() {
   const [lessonData, setLessonData] = useState<LessonData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [initialMode, setInitialMode] = useState<'ai' | 'manual'>('ai');
+  const [currentSubject, setCurrentSubject] = useState<Subject>('GDCD');
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
   useEffect(() => {
     seedDictionary().catch(console.error);
+    const saved = localStorage.getItem('current_active_lesson');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setLockedText(parsed.lockedText);
+        setLessonData(parsed.lessonData);
+        setCurrentSubject(parsed.currentSubject || 'GDCD');
+        setStep('analyzed');
+      } catch (e) {
+        console.error("Lỗi khi khôi phục bài học:", e);
+      }
+    }
   }, []);
 
-  const handleInputComplete = (text: string) => {
+  useEffect(() => {
+    if (step === 'analyzed' && lessonData && lockedText) {
+      localStorage.setItem('current_active_lesson', JSON.stringify({
+        lockedText,
+        lessonData,
+        currentSubject
+      }));
+    }
+  }, [step, lessonData, lockedText, currentSubject]);
+
+  const handleInputComplete = (text: string, subject: Subject) => {
     setDraftText(text);
+    setCurrentSubject(subject);
     setStep('review');
+  };
+
+  const handleOpenLibraryLesson = (savedLesson: SavedLesson) => {
+    setIsLibraryOpen(false);
+    setLockedText(savedLesson.originalText);
+    setCurrentSubject(savedLesson.subject);
+    setLessonData({
+      han_viet_dictionary: savedLesson.hanVietDictionary.map(h => ({
+        word: h.word,
+        root_meaning: h.rootMeaning,
+        logical_anchor: h.logicalAnchor
+      })),
+      formula_summary: savedLesson.formulaSummary ? savedLesson.formulaSummary.split('\n').map(line => {
+        const [formula, ...descParts] = line.split(' - ');
+        return { formula: formula.trim(), description: descParts.join(' - ').trim() };
+      }).filter(f => f.formula) : [],
+      keywords_level_1: savedLesson.keywordsLevel1,
+      keywords_level_2: savedLesson.keywordsLevel2
+    });
+    setInitialMode('ai');
+    setStep('analyzed');
   };
 
   const handleReviewLock = async (finalText: string) => {
@@ -55,14 +103,23 @@ function App() {
 
   return (
     <div className="min-h-screen bg-krones-bg py-8 px-4 font-sans text-gray-900">
-      <header className="max-w-3xl mx-auto mb-8 flex items-center gap-3">
-        <div className="w-12 h-12 bg-krones-navy rounded flex items-center justify-center shadow-lg">
-          <Brain className="text-white" size={28} />
+      <header className="max-w-3xl mx-auto mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-krones-navy rounded flex items-center justify-center shadow-lg">
+            <Brain className="text-white" size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-krones-navy uppercase tracking-wide">Logic Recall</h1>
+            <p className="text-sm font-medium text-krones-blue">Active Learning for Analytical Minds</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-krones-navy uppercase tracking-wide">Logic Recall</h1>
-          <p className="text-sm font-medium text-krones-blue">Active Learning for Analytical Minds</p>
-        </div>
+        <button 
+          onClick={() => setIsLibraryOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-white text-krones-navy border border-krones-blue rounded-full shadow-sm hover:bg-krones-ice transition-colors font-medium"
+        >
+          <Library size={20} className="text-krones-blue" />
+          <span className="hidden sm:inline">Bài đã lưu</span>
+        </button>
       </header>
 
       <main className="max-w-3xl mx-auto">
@@ -124,9 +181,16 @@ function App() {
         )}
 
         {step === 'analyzed' && lessonData && (
-          <LogicBridge originalText={lockedText} data={lessonData} initialMode={initialMode} />
+          <LogicBridge originalText={lockedText} data={lessonData} initialMode={initialMode} subject={currentSubject} />
         )}
       </main>
+
+      {isLibraryOpen && (
+        <LibraryModal 
+          onClose={() => setIsLibraryOpen(false)}
+          onOpenLesson={handleOpenLibraryLesson}
+        />
+      )}
     </div>
   );
 }

@@ -6,8 +6,10 @@ import { Mic, MicOff, ClipboardPaste, Camera, Keyboard, CheckCircle, Loader2, Im
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 
+import type { Subject } from '../types/index';
+
 interface MultiModalInputProps {
-  onComplete: (text: string) => void;
+  onComplete: (text: string, subject: Subject) => void;
 }
 
 // Helper nén ảnh bằng Canvas
@@ -53,6 +55,7 @@ async function fileToBase64(file: File): Promise<string> {
 export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) => {
   const [text, setText] = useState('');
   const [interimText, setInterimText] = useState('');
+  const [subject, setSubject] = useState<Subject>('GDCD');
   
   const [isMicActive, setIsMicActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -283,7 +286,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     if (recognitionRef.current) {
       recognitionRef.current.abort();
     }
-    onComplete(text);
+    onComplete(text, subject);
   };
 
   const displayText = text + (interimText ? (text && text.trim() ? ' ' : '') + interimText : '');
@@ -298,6 +301,25 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 bg-white rounded-xl shadow-sm border border-krones-ice">
       <h2 className="text-xl font-bold text-krones-navy mb-4">Nhập liệu Đa kênh</h2>
+
+      <div className="mb-4">
+        <label className="block text-sm font-semibold text-krones-navy mb-2">Chọn môn học:</label>
+        <div className="flex flex-wrap gap-2">
+          {(['GDCD', 'Lịch Sử', 'Địa Lý', 'KHTN', 'Công nghệ', 'Ngữ văn', 'Other'] as Subject[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSubject(s)}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                subject === s
+                  ? 'bg-krones-navy text-white'
+                  : 'bg-krones-ice text-krones-navy hover:bg-krones-blue hover:text-white'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
       
       <div className="flex flex-wrap gap-2 mb-4">
         <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium">

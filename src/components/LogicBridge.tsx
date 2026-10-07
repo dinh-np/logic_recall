@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookOpen, Calculator, BrainCircuit } from 'lucide-react';
+import { BookOpen, Calculator, BrainCircuit, Save, Check } from 'lucide-react';
 import { DictionaryPopup } from './DictionaryPopup';
 import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
+import { saveLessonToFirestore } from '../services/firebase';
+import type { Subject, SavedLesson } from '../types/index';
 
 export interface HanViet {
   word: string;
@@ -25,14 +27,17 @@ interface LogicBridgeProps {
   originalText: string;
   data: LessonData;
   initialMode?: 'manual' | 'ai';
+  subject: Subject;
 }
 
-export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, initialMode = 'ai' }) => {
+export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, initialMode = 'ai', subject }) => {
   const [level, setLevel] = useState<number>(0);
   const [mode, setMode] = useState<'manual' | 'ai'>(initialMode);
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [peekWords, setPeekWords] = useState<Set<number>>(new Set());
   const [peekCount, setPeekCount] = useState(0);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Dictionary Popup State
   const [dictEntry, setDictEntry] = useState<DictionaryEntry | null>(null);
@@ -111,6 +116,46 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     setDictLoading(false);
   };
 
+  const handleSaveToLibrary = async () => {
+    if (isSaved || isSaving) return;
+    setIsSaving(true);
+    try {
+      const title = originalText.split('\n')[0].substring(0, 50) + (originalText.length > 50 ? '...' : '');
+      const lessonToSave: Omit<SavedLesson, 'id'> = {
+        title: title || 'Bài học không tên',
+        subject: subject,
+        originalText: originalText,
+        formulaSummary: data.formula_summary ? data.formula_summary.map(f => `${f.formula} - ${f.description}`).join('\n') : '',
+        hanVietDictionary: data.han_viet_dictionary ? data.han_viet_dictionary.map(h => ({
+          word: h.word,
+          rootMeaning: h.root_meaning,
+          logicalAnchor: h.logical_anchor
+        })) : [],
+        keywordsLevel1: data.keywords_level_1 || [],
+        keywordsLevel2: data.keywords_level_2 || [],
+        createdAt: Date.now()
+      };
+      
+      await saveLessonToFirestore(lessonToSave);
+      setIsSaved(true);
+      // Optional: Add toast notification using standard DOM or state if desired
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded shadow-lg z-50 animate-in slide-in-from-bottom-5';
+      toast.innerText = 'Đã lưu bài học vào Thư viện thành công!';
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+
+    } catch (error) {
+      console.error("Lỗi khi lưu bài học:", error);
+      alert("Lỗi khi lưu bài học. Vui lòng thử lại.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const renderWord = (word: string, index: number) => {
     const isWord = /\w/u.test(word);
     if (!isWord) return <span key={index}>{word}</span>;
@@ -151,6 +196,39 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   return (
     <div className="space-y-8 animate-in fade-in duration-500 w-full max-w-4xl mx-auto">
       
+      {/* LogicBridge Header with Save Button */}
+      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-krones-ice shadow-sm gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-krones-navy flex items-center gap-2">
+            LogicBridge 
+            <span className="bg-krones-ice text-krones-blue text-sm px-2 py-1 rounded-full">{subject}</span>
+          </h2>
+        </div>
+        <button
+          onClick={handleSaveToLibrary}
+          disabled={isSaved || isSaving}
+          className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition-all ${
+            isSaved 
+              ? 'bg-green-100 text-green-700 border border-green-200' 
+              : 'bg-krones-navy text-white hover:bg-krones-hover shadow-md'
+          }`}
+        >
+          {isSaving ? (
+            <span className="animate-pulse">Đang lưu...</span>
+          ) : isSaved ? (
+            <>
+              <Check size={18} />
+              <span>✓ Đã lưu</span>
+            </>
+          ) : (
+            <>
+              <Save size={18} />
+              <span>💾 Lưu vào Thư viện</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* 1. Hán Việt Dictionary */}
       {data.han_viet_dictionary && data.han_viet_dictionary.length > 0 && (
         <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
