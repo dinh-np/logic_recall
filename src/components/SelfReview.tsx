@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Edit2, Lock, ArrowLeft } from 'lucide-react';
 
 interface SelfReviewProps {
@@ -9,6 +9,14 @@ interface SelfReviewProps {
 
 export const SelfReview: React.FC<SelfReviewProps> = ({ initialText, onBack, onLock }) => {
   const [text, setText] = useState(initialText);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text]);
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 bg-white rounded-xl shadow-sm border border-krones-ice">
@@ -32,9 +40,10 @@ export const SelfReview: React.FC<SelfReviewProps> = ({ initialText, onBack, onL
       </div>
 
       <textarea
+        ref={textareaRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full min-h-[300px] p-4 border-2 border-krones-blue/50 rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-y mb-6 font-sans"
+        className="w-full min-h-[300px] p-4 border-2 border-krones-blue/50 rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-none overflow-hidden mb-6 font-sans"
       />
 
       <div className="flex justify-end">
