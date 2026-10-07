@@ -87,7 +87,7 @@ function App() {
             )}
             <div className="mt-6 p-4 bg-krones-ice/50 rounded text-left border border-krones-ice">
               <h3 className="font-bold text-krones-navy mb-2">Văn bản gốc đã khóa:</h3>
-              <p className="text-gray-700 leading-relaxed">{lockedText}</p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{lockedText}</p>
             </div>
           </div>
         )}

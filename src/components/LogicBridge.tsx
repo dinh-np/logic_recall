@@ -202,7 +202,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data }) 
           )}
         </div>
 
-        <div className="p-6 bg-[#f8fafc] rounded-xl border-2 border-dashed border-gray-300 text-lg leading-loose font-sans text-gray-800 shadow-inner min-h-[300px]">
+        <div className="p-6 bg-[#f8fafc] rounded-xl border-2 border-dashed border-gray-300 text-lg leading-loose font-sans text-gray-800 shadow-inner min-h-[300px] whitespace-pre-wrap">
           {words.map((word, index) => renderWord(word, index))}
         </div>
       </div>

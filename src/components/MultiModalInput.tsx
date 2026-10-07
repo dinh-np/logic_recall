@@ -62,10 +62,19 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   
   const recognitionRef = useRef<any>(null);
   const isPausedRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  // Tự động co giãn Textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [text, interimText, isScanning]);
 
   // Khởi tạo Speech Recognition
   useEffect(() => {
@@ -369,13 +378,14 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       {!isScanning && (
         <div className="relative mb-4">
           <textarea
+            ref={textareaRef}
             value={displayText}
             onChange={(e) => {
               setText(e.target.value);
               setInterimText(''); 
             }}
             placeholder="Nhập hoặc tải tài liệu/ảnh bài học vào đây..."
-            className="w-full min-h-[200px] p-4 border-2 border-krones-ice rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-y font-sans shadow-inner bg-gray-50/50"
+            className="w-full min-h-[200px] p-4 border-2 border-krones-ice rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-none overflow-hidden font-sans shadow-inner bg-gray-50/50"
           />
           {interimText && (
             <span className="absolute bottom-4 right-4 text-sm font-semibold text-krones-blue animate-pulse bg-krones-ice px-2 py-1 rounded">
