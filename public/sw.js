@@ -27,6 +27,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Do not intercept non-GET requests or API requests
+  if (event.request.method !== 'GET' || event.request.url.includes('googleapis.com')) {
+    return;
+  }
+
   // Network-first strategy to ensure fresh index.html and JS chunks
   event.respondWith(
     fetch(event.request)

@@ -161,8 +161,8 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Sử dụng model mới nhất để tránh lỗi 404
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    // Sử dụng model phiên bản ổn định (gemini-1.5-flash hoặc pro)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong ảnh/tài liệu này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
     
