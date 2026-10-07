@@ -9,15 +9,27 @@ interface MultiModalInputProps {
 export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) => {
   const [text, setText] = useState('');
   const [interimText, setInterimText] = useState('');
-  const [isListening, setIsListening] = useState(false);
+  
+  // isMicActive: Trạng thái thực tế của phần cứng Micro
+  const [isMicActive, setIsMicActive] = useState(false);
+  // isPaused: Trạng thái ngắt thu âm bằng phần mềm (bỏ qua text)
+  const [isPaused, setIsPaused] = useState(false);
+  
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const recognitionRef = useRef<any>(null);
+  // Dùng ref để trong event listener (onresult) có thể đọc được trạng thái pause mới nhất
+  const isPausedRef = useRef(false);
 
-  // Khởi tạo Speech Recognition 1 lần duy nhất trong vòng đời của Component
+  // Sync state vào ref
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  // Khởi tạo Speech Recognition
   useEffect(() => {
     if (('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window)) {
       // @ts-ignore
@@ -27,20 +39,28 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       recognition.continuous = true;
       recognition.interimResults = true;
 
-      recognition.onstart = () => setIsListening(true);
+      recognition.onstart = () => {
+        setIsMicActive(true);
+      };
       
       recognition.onend = () => {
-        setIsListening(false);
+        setIsMicActive(false);
         setInterimText('');
+        // Nếu hệ thống tự tắt mic (do im lặng quá lâu), reset lại nút pause
+        setIsPaused(false); 
       };
       
       recognition.onerror = (e: any) => {
         console.error("Speech Recognition Error:", e);
-        setIsListening(false);
+        setIsMicActive(false);
+        setIsPaused(false);
         setInterimText('');
       };
 
       recognition.onresult = (event: any) => {
+        // Nếu người dùng đã bấm nút Tạm dừng (mềm), bỏ qua hoàn toàn các kết quả thu được
+        if (isPausedRef.current) return;
+
         let currentInterim = '';
         let currentFinal = '';
         
@@ -54,7 +74,6 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
         }
         
         if (currentFinal) {
-          // Dùng callback (prev) để luôn lấy được state mới nhất mà không cần đưa 'text' vào dependency
           setText((prev) => prev + (prev && prev.trim() ? ' ' : '') + currentFinal);
         }
         setInterimText(currentInterim);
@@ -63,10 +82,10 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       recognitionRef.current = recognition;
     }
 
-    // Cleanup triệt để khi component unmount (chuyển qua trang Review)
+    // Cleanup triệt để khi component unmount
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.abort(); // Dừng hoàn toàn và giải phóng tài nguyên mic
+        recognitionRef.current.abort(); 
       }
     };
   }, []);
@@ -77,10 +96,18 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       return;
     }
     
-    if (isListening) {
-      recognitionRef.current.stop(); // Ngắt thu âm mềm mại để xử lý nốt text
+    if (isMicActive) {
+      // Nếu mic đang chạy, chỉ chuyển đổi trạng thái phần mềm (isPaused)
+      // KHÔNG gọi stop() để tránh thiết bị iOS/Android hỏi lại quyền khi mở lại
+      setIsPaused(!isPaused);
+      if (!isPaused) {
+        // Nếu đang chuyển sang Paused, dọn sạch interim text trên màn hình
+        setInterimText('');
+      }
     } else {
+      // Nếu mic chưa bật, bật nó lên
       try {
+        setIsPaused(false);
         recognitionRef.current.start();
       } catch (e) {
         console.error("Không thể khởi động mic, có thể nó đang chạy.", e);
@@ -132,8 +159,8 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     setIsCameraOpen(false);
     setIsScanning(true);
 
-    // Tự động dừng Mic nếu đang nghe (tránh chạy nền)
-    if (isListening && recognitionRef.current) {
+    // Tự động dừng Mic hoàn toàn nếu đang chụp hình (giảm tải thiết bị)
+    if (isMicActive && recognitionRef.current) {
       recognitionRef.current.abort();
     }
 
@@ -166,15 +193,22 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   };
 
   const handleComplete = () => {
-    // Ép tắt mic triệt để khi chốt khóa text
+    // Tắt hẳn mic triệt để khi chốt khóa text
     if (recognitionRef.current) {
       recognitionRef.current.abort();
-      setIsListening(false);
     }
     onComplete(text);
   };
 
   const displayText = text + (interimText ? (text && text.trim() ? ' ' : '') + interimText : '');
+
+  // Xác định chữ và icon cho nút Mic
+  const getMicButtonLabel = () => {
+    if (isMicActive && !isPaused) return 'Đang nghe... (Chạm để Tạm dừng)';
+    if (isMicActive && isPaused) return 'Tiếp tục đọc (Mic)';
+    if (text) return 'Đọc thêm bằng Mic';
+    return 'Đọc Micro (VN)';
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 bg-white rounded-xl shadow-sm border border-krones-ice">
@@ -192,13 +226,13 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
         <button 
           onClick={handleVoiceInput} 
           className={`flex items-center gap-2 px-4 py-2 rounded touch-target font-medium transition-colors ${
-            isListening 
+            isMicActive && !isPaused 
               ? 'bg-red-500 text-white animate-pulse shadow-md' 
               : 'bg-krones-ice text-krones-navy hover:bg-krones-blue hover:text-white'
           }`}
         >
-          {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-          <span>{isListening ? 'Đang nghe... (Chạm để ngắt)' : text ? 'Tiếp tục đọc (Mic)' : 'Đọc Micro (VN)'}</span>
+          {isMicActive && !isPaused ? <MicOff size={20} /> : <Mic size={20} />}
+          <span>{getMicButtonLabel()}</span>
         </button>
         <button onClick={handleCameraCapture} className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium">
           <Camera size={20} />
@@ -253,6 +287,11 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
           {interimText && (
             <span className="absolute bottom-4 right-4 text-sm font-semibold text-krones-blue animate-pulse bg-krones-ice px-2 py-1 rounded">
               Đang nghe...
+            </span>
+          )}
+          {isMicActive && isPaused && (
+            <span className="absolute bottom-4 right-4 text-sm font-semibold text-gray-500 bg-krones-ice px-2 py-1 rounded">
+              Micro đang ở chế độ chờ...
             </span>
           )}
         </div>
