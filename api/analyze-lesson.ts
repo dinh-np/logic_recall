@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+export const maxDuration = 30; // Cho phép chạy tối đa 30 giây
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -41,23 +43,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
-          generationConfig: { responseMimeType: "application/json" }
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2, // Nhiệt độ thấp giúp AI phản hồi nhanh và chính xác
+          }
         });
         
-        const prompt = `
-Phân tích văn bản bài học sau và trả về JSON chuẩn theo cấu trúc sau:
-{
-  "han_viet_dictionary": [ {"word": "...", "meaning": "...", "example": "..."} ], // Bảng giải nghĩa từ Hán - Việt dạng module ("Tách âm - Ghép nghĩa" + Ví dụ neo tư duy logic).
-  "formula_summary": [ {"formula": "...", "description": "..."} ], // Công thức toán học / hệ phương trình tóm tắt bài học (Formula View). Trả về mảng rỗng nếu không có.
-  "keywords_level_1": ["...", "..."], // Danh sách từ nối, từ phụ, từ chỉ bối cảnh chung.
-  "keywords_level_2": ["...", "..."] // Danh sách từ khóa cốt lõi mang điểm số, quan trọng nhất của bài học.
-}
+        const prompt = `Phân tích đoạn văn bản sau để phục vụ học thuộc lòng cho học sinh lớp 7.
+Trả về JSON với các trường:
+- han_viet_dictionary: danh sách từ Hán-Việt khó (word, root_meaning, logical_anchor).
+- formula_summary: công thức ngắn gọn dạng phương trình.
+- keywords_level_1: mảng các từ nối, từ phụ.
+- keywords_level_2: mảng các từ khóa cốt lõi quan trọng nhất.
 
-Văn bản cần phân tích:
-"""
-${text}
-"""
-`;
+Văn bản:
+${text}`;
 
         const result = await generateWithRetry(model, prompt);
         responseText = result.response.text();

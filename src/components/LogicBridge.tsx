@@ -3,8 +3,8 @@ import { BookOpen, Calculator, BrainCircuit } from 'lucide-react';
 
 export interface HanViet {
   word: string;
-  meaning: string;
-  example: string;
+  root_meaning: string;
+  logical_anchor: string;
 }
 
 export interface Formula {
@@ -128,8 +128,8 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data }) 
             {data.han_viet_dictionary.map((hv, idx) => (
               <div key={idx} className="p-4 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow">
                 <div className="font-bold text-lg text-krones-navy mb-1">{hv.word}</div>
-                <div className="text-sm font-medium text-krones-blue mb-2">{hv.meaning}</div>
-                <div className="text-sm text-gray-600 italic">"{hv.example}"</div>
+                <div className="text-sm font-medium text-krones-blue mb-2">{hv.root_meaning}</div>
+                <div className="text-sm text-gray-600 italic">"{hv.logical_anchor}"</div>
               </div>
             ))}
           </div>

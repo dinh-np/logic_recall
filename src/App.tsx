@@ -27,7 +27,14 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: finalText })
       });
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (e) {
+        throw new Error("Phản hồi từ máy chủ không hợp lệ: " + resText.slice(0, 100));
+      }
+      
       if (!res.ok) {
         throw new Error(data.error || 'Lỗi phân tích bài học');
       }
