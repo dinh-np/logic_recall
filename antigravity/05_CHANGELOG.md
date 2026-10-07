@@ -1,3 +1,4 @@
+
 # CHANGELOG & LỊCH SỬ PHÁT TRIỂN
 
 Tài liệu này lưu trữ toàn bộ lịch sử các thay đổi từ mốc khởi tạo đầu tiên ("1_commit lan dau") để theo dõi sát tiến độ dự án.
