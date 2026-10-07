@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { Mic, MicOff, ClipboardPaste, Camera, Keyboard, CheckCircle, Loader2, Image as ImageIcon, FileText } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// import removed as it is now used server-side
 // @ts-ignore
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
@@ -153,49 +153,23 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
   };
 
-  // Hàm gọi Gemini chung cho Hình ảnh và PDF kèm cơ chế Fallback model
+  // Hàm gọi API nội bộ (/api/extract-text) chung cho Hình ảnh và PDF
   const extractTextWithGemini = async (base64Data: string, mimeType: string) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Thiếu biến môi trường VITE_GEMINI_API_KEY");
-    }
+    const response = await fetch('/api/extract-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base64Data,
+        mimeType,
+        prompt: "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong tài liệu/hình ảnh này. Giữ nguyên câu chữ, không thêm lời giải thích hay định dạng markdown."
+      })
+    });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    const MODEL_NAME = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
-    const FALLBACK_MODELS = [
-      MODEL_NAME,
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash-002",
-      "gemini-1.5-pro-002"
-    ];
-    
-    const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong ảnh/tài liệu này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
-    
-    let lastError: any = null;
-
-    for (const modelName of FALLBACK_MODELS) {
-      try {
-        console.log(`Đang gọi model: ${modelName}...`);
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              mimeType,
-              data: base64Data
-            }
-          },
-          prompt
-        ]);
-        const response = await result.response;
-        return response.text().trim();
-      } catch (err: any) {
-        console.warn(`Model ${modelName} thất bại, chuyển sang model kế tiếp...`, err);
-        lastError = err;
-      }
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Lỗi trích xuất văn bản');
     }
-    throw lastError;
+    return data.text;
   };
 
   // OCR sử dụng input type=file cho Ảnh (Camera hoặc Thư viện)
