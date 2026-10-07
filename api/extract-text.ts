@@ -15,13 +15,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { base64Data, mimeType, prompt } = req.body;
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Sử dụng danh sách model khả dụng
-    const candidateModels = [
+    // Tự động ưu tiên gọi model đầu tiên tìm thấy trong danh sách khả dụng từ Google
+    let candidateModels = [
       "gemini-2.5-flash",
       "gemini-2.0-flash",
       "gemini-1.5-flash",
       "gemini-1.5-pro"
     ];
+
+    try {
+      const listResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listResponse.ok) {
+        const data = await listResponse.json();
+        const availableModels = (data.models || [])
+          .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
+          .map((m: any) => m.name.replace("models/", ""));
+        
+        if (availableModels.length > 0) {
+          candidateModels = [availableModels[0], ...candidateModels];
+        }
+      }
+    } catch (e) {
+      console.warn("Không thể lấy danh sách model:", e);
+    }
+
+    // Loại bỏ model trùng lặp
+    candidateModels = Array.from(new Set(candidateModels));
 
     let extractedText = '';
     let lastErr = null;
@@ -47,12 +66,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!extractedText && lastErr) {
-      throw lastErr;
+      let errorMessage = lastErr.message || 'Lỗi xử lý OCR';
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        errorMessage = "API Key chưa kích hoạt Generative Language API hoặc không hợp lệ. Vui lòng kiểm tra tại aistudio.google.com/apikey. Lỗi gốc: " + errorMessage;
+      }
+      throw new Error(errorMessage);
     }
 
     return res.status(200).json({ text: extractedText });
   } catch (error: any) {
     console.error('OCR Error:', error);
-    return res.status(500).json({ error: error.message || 'Lỗi xử lý OCR' });
+    let errorMsg = error.message || 'Lỗi xử lý OCR';
+    if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+      errorMsg = "API Key chưa kích hoạt Generative Language API hoặc không hợp lệ. Vui lòng kiểm tra tại aistudio.google.com/apikey. Lỗi gốc: " + errorMsg;
+    }
+    return res.status(500).json({ error: errorMsg });
   }
 }
