@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Calculator, BrainCircuit } from 'lucide-react';
 
 export interface HanViet {
@@ -35,23 +35,28 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   // Phân tách từ, dấu câu, khoảng trắng
   const words: string[] = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
 
+  const { l1Words, l2Words } = useMemo(() => {
+    return {
+      l1Words: new Set(data.keywords_level_1.flatMap(w => w.toLowerCase().split(/\s+/))),
+      l2Words: new Set(data.keywords_level_2.flatMap(w => w.toLowerCase().split(/\s+/)))
+    };
+  }, [data]);
+
   useEffect(() => {
     if (mode === 'ai') {
       const newHidden = new Set<number>();
-      const l1 = new Set(data.keywords_level_1.map(w => w.toLowerCase()));
-      const l2 = new Set(data.keywords_level_2.map(w => w.toLowerCase()));
-
       words.forEach((w, i) => {
         const cleanWord = w.trim().toLowerCase();
-        if (level >= 1 && l1.has(cleanWord)) newHidden.add(i);
-        if (level >= 2 && l2.has(cleanWord)) newHidden.add(i);
+        if (!cleanWord) return;
+        if (level >= 1 && l1Words.has(cleanWord)) newHidden.add(i);
+        if (level >= 2 && l2Words.has(cleanWord)) newHidden.add(i);
         if (level === 3 && /\w/u.test(w)) newHidden.add(i);
       });
       setHiddenWords(newHidden);
     } else {
       setHiddenWords(new Set());
     }
-  }, [level, mode, data]);
+  }, [level, mode, l1Words, l2Words, originalText]);
 
   const toggleWord = (index: number, word: string) => {
     if (!/\w/u.test(word)) return;
@@ -87,7 +92,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
 
     if (isHidden && !isPeeked) {
       let hint = "......";
-      if (level === 2 && data.keywords_level_2.some(kw => kw.toLowerCase() === word.trim().toLowerCase())) {
+      if (level === 2 && l2Words.has(word.trim().toLowerCase())) {
         hint = word.charAt(0) + "......";
       }
 
