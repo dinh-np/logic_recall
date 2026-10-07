@@ -15,7 +15,7 @@ async function compressImageToJpegBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const maxWidth = 1200;
+      const maxWidth = 1024;
       let width = img.width;
       let height = img.height;
       if (width > maxWidth) {
@@ -27,7 +27,7 @@ async function compressImageToJpegBase64(file: File): Promise<string> {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
       const base64Data = dataUrl.split(',')[1];
       resolve(base64Data);
     };
@@ -58,6 +58,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   const [isPaused, setIsPaused] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanningMessage, setScanningMessage] = useState('Đang đọc và xử lý tài liệu...');
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const isPausedRef = useRef(false);
@@ -155,7 +156,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   };
 
   // Hàm gọi API nội bộ (/api/extract-text) chung cho Hình ảnh và PDF
-  const extractTextWithGemini = async (base64Data: string, mimeType: string) => {
+  const extractTextWithGemini = async (base64Data: string, mimeType: string, signal?: AbortSignal) => {
     const response = await fetch('/api/extract-text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -163,7 +164,8 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
         base64Data,
         mimeType,
         prompt: "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong tài liệu/hình ảnh này. Giữ nguyên câu chữ, không thêm lời giải thích hay định dạng markdown."
-      })
+      }),
+      signal
     });
 
     const data = await response.json();
@@ -178,6 +180,8 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const controller = new AbortController();
+    setAbortController(controller);
     setScanningMessage('Đang phân tích hình ảnh bằng AI...');
     setIsScanning(true);
 
@@ -187,13 +191,18 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
 
     try {
       const base64Data = await compressImageToJpegBase64(file);
-      const extractedText = await extractTextWithGemini(base64Data, "image/jpeg");
+      const extractedText = await extractTextWithGemini(base64Data, "image/jpeg", controller.signal);
       setText((prev) => prev + (prev && prev.trim() ? '\n\n' : '') + extractedText);
     } catch (error: any) {
-      console.error("OCR Image Error:", error);
-      alert(`Lỗi trích xuất ảnh: ${error.message || 'Vui lòng thử lại.'}`);
+      if (error.name === 'AbortError') {
+        console.log("Image scanning was aborted");
+      } else {
+        console.error("OCR Image Error:", error);
+        alert(`Lỗi trích xuất ảnh: ${error.message || 'Vui lòng thử lại.'}`);
+      }
     } finally {
       setIsScanning(false);
+      setAbortController(null);
       event.target.value = '';
     }
   };
@@ -202,6 +211,9 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   const handleDocumentUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    const controller = new AbortController();
+    setAbortController(controller);
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
       setScanningMessage('Đang đọc tài liệu PDF (có thể mất chút thời gian với file lớn)...');
@@ -221,7 +233,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       if (fileName.endsWith('.pdf')) {
         // Gửi PDF qua Gemini
         const base64Data = await fileToBase64(file);
-        extractedText = await extractTextWithGemini(base64Data, "application/pdf");
+        extractedText = await extractTextWithGemini(base64Data, "application/pdf", controller.signal);
       } 
       else if (fileName.endsWith('.txt')) {
         // Đọc trực tiếp text
@@ -245,10 +257,15 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       
       setText((prev) => prev + (prev && prev.trim() ? '\n\n' : '') + extractedText.trim());
     } catch (error: any) {
-      console.error("Document Upload Error:", error);
-      alert(`Lỗi xử lý tài liệu: ${error.message || 'Vui lòng thử lại.'}`);
+      if (error.name === 'AbortError') {
+        console.log("Document scanning was aborted");
+      } else {
+        console.error("Document Upload Error:", error);
+        alert(`Lỗi xử lý tài liệu: ${error.message || 'Vui lòng thử lại.'}`);
+      }
     } finally {
       setIsScanning(false);
+      setAbortController(null);
       event.target.value = '';
     }
   };
@@ -333,9 +350,19 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       </div>
 
       {isScanning && (
-        <div className="flex items-center justify-center gap-3 p-8 mb-4 border-2 border-krones-ice border-dashed rounded bg-krones-bg">
-          <Loader2 className="text-krones-blue animate-spin" size={32} />
-          <p className="text-krones-navy font-medium text-lg">{scanningMessage}</p>
+        <div className="flex flex-col items-center justify-center gap-3 p-8 mb-4 border-2 border-krones-ice border-dashed rounded bg-krones-bg">
+          <div className="flex items-center gap-3">
+            <Loader2 className="text-krones-blue animate-spin" size={32} />
+            <p className="text-krones-navy font-medium text-lg">{scanningMessage}</p>
+          </div>
+          {abortController && (
+            <button
+              onClick={() => abortController.abort()}
+              className="mt-2 px-4 py-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors font-medium border border-red-200"
+            >
+              Dừng lại
+            </button>
+          )}
         </div>
       )}
 

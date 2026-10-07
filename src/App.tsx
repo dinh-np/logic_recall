@@ -1,22 +1,42 @@
 import { useState } from 'react';
 import { MultiModalInput } from './components/MultiModalInput';
 import { SelfReview } from './components/SelfReview';
-import { Brain } from 'lucide-react';
+import { LogicBridge, type LessonData } from './components/LogicBridge';
+import { Brain, AlertCircle } from 'lucide-react';
 
 function App() {
-  const [step, setStep] = useState<'input' | 'review' | 'locked'>('input');
+  const [step, setStep] = useState<'input' | 'review' | 'locked' | 'analyzed'>('input');
   const [draftText, setDraftText] = useState('');
   const [lockedText, setLockedText] = useState('');
+  const [lessonData, setLessonData] = useState<LessonData | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleInputComplete = (text: string) => {
     setDraftText(text);
     setStep('review');
   };
 
-  const handleReviewLock = (finalText: string) => {
+  const handleReviewLock = async (finalText: string) => {
     setLockedText(finalText);
     setStep('locked');
-    // TODO: Connect to Gemini to get hanVietList, formulas, etc.
+    setErrorMsg('');
+    
+    try {
+      const res = await fetch('/api/analyze-lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: finalText })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Lỗi phân tích bài học');
+      }
+      setLessonData(data);
+      setStep('analyzed');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Có lỗi xảy ra khi kết nối AI');
+    }
   };
 
   return (
@@ -49,14 +69,31 @@ function App() {
             <Brain className="mx-auto text-krones-blue mb-4 animate-bounce" size={48} />
             <h2 className="text-2xl font-bold text-krones-navy mb-2">Đang phân tích hệ thống logic...</h2>
             <p className="text-lg text-gray-600 mb-6">Mở khóa từ Hán - Việt và trích xuất phương trình.</p>
-            <div className="w-full bg-krones-ice rounded-full h-3 mb-6 overflow-hidden">
-              <div className="bg-krones-blue h-3 rounded-full animate-[pulse_2s_ease-in-out_infinite] w-2/3"></div>
-            </div>
-            <div className="p-4 bg-krones-ice/50 rounded text-left border border-krones-ice">
+            {errorMsg ? (
+              <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 border border-red-200">
+                <AlertCircle />
+                <span>{errorMsg}</span>
+                <button 
+                  onClick={() => handleReviewLock(lockedText)} 
+                  className="ml-4 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : (
+              <div className="w-full bg-krones-ice rounded-full h-3 mb-6 overflow-hidden">
+                <div className="bg-krones-blue h-3 rounded-full animate-[pulse_2s_ease-in-out_infinite] w-2/3"></div>
+              </div>
+            )}
+            <div className="mt-6 p-4 bg-krones-ice/50 rounded text-left border border-krones-ice">
               <h3 className="font-bold text-krones-navy mb-2">Văn bản gốc đã khóa:</h3>
               <p className="text-gray-700 leading-relaxed">{lockedText}</p>
             </div>
           </div>
+        )}
+
+        {step === 'analyzed' && lessonData && (
+          <LogicBridge originalText={lockedText} data={lessonData} />
         )}
       </main>
     </div>
