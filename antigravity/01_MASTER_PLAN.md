@@ -44,8 +44,8 @@
 ---
 
 ## 3. Lộ trình phát triển (Milestones)
-- **Sprint 1:** Khởi tạo khung PWA Vite + React + Tailwind Krones Theme; module Input đa kênh và màn hình Self-Review.
-- **Sprint 2:** Xây dựng Engine Vanishing Game (Manual highlight + AI extraction + thanh trượt 3 level).
+- **Sprint 1:** Khởi tạo khung PWA Vite + React + Tailwind Krones Theme; module Input đa kênh và màn hình Self-Review. (Đã hoàn thành)
+- **Sprint 2:** Xây dựng Engine Vanishing Game (Manual highlight + AI extraction + thanh trượt 3 level). (Đã hoàn thành)
 - **Sprint 3:** Module chụp bài viết tay, kết nối Gemini Vision OCR chữ viết tay và render báo cáo Diff Xanh/Đỏ.
 - **Sprint 4:** Tích hợp lưu trữ IndexedDB (Offline-first) và Firebase Firestore (Đồng bộ từ xa cho cha).
 *(Lưu ý: Tính năng WebMCP dời lại thành dự án nâng cấp riêng biệt sau).*
