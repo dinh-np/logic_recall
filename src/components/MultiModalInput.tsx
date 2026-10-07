@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
-import { Mic, MicOff, ClipboardPaste, Camera, Keyboard, CheckCircle, Loader2 } from 'lucide-react';
+import { Mic, MicOff, ClipboardPaste, Camera, Keyboard, CheckCircle, Loader2, Image as ImageIcon, FileText } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// @ts-ignore
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 
 interface MultiModalInputProps {
   onComplete: (text: string) => void;
@@ -24,14 +27,26 @@ async function compressImageToJpegBase64(file: File): Promise<string> {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, width, height);
-      // Luôn xuất ra định dạng image/jpeg chuẩn
       const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-      // Cắt bỏ phần "data:image/jpeg;base64," để lấy raw base64
       const base64Data = dataUrl.split(',')[1];
       resolve(base64Data);
     };
     img.onerror = reject;
     img.src = URL.createObjectURL(file);
+  });
+}
+
+// Helper chuyển file PDF sang base64
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(',')[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
   });
 }
 
@@ -138,7 +153,33 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
   };
 
-  // OCR sử dụng input type=file để tương thích tốt nhất với iOS/Android Camera
+  // Hàm gọi Gemini 1.5 Flash chung cho Hình ảnh và PDF
+  const extractTextWithGemini = async (base64Data: string, mimeType: string) => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Thiếu biến môi trường VITE_GEMINI_API_KEY");
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Sử dụng model mới nhất để tránh lỗi 404
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    
+    const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong ảnh/tài liệu này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
+    
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType,
+          data: base64Data
+        }
+      },
+      prompt
+    ]);
+    const response = await result.response;
+    return response.text().trim();
+  };
+
+  // OCR sử dụng input type=file cho Ảnh (Camera hoặc Thư viện)
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -151,37 +192,63 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
 
     try {
       const base64Data = await compressImageToJpegBase64(file);
-
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Thiếu biến môi trường VITE_GEMINI_API_KEY");
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
-      const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong trang sách này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
-      
-      const imageParts = [
-        {
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: base64Data
-          }
-        }
-      ];
-
-      const result = await model.generateContent([prompt, ...imageParts]);
-      const response = await result.response;
-      const extractedText = response.text().trim();
-      
+      const extractedText = await extractTextWithGemini(base64Data, "image/jpeg");
       setText((prev) => prev + (prev && prev.trim() ? '\n\n' : '') + extractedText);
     } catch (error: any) {
-      console.error("OCR Error:", error);
-      alert(`Lỗi trích xuất: ${error.message || 'Vui lòng thử lại.'}`);
+      console.error("OCR Image Error:", error);
+      alert(`Lỗi trích xuất ảnh: ${error.message || 'Vui lòng thử lại.'}`);
     } finally {
       setIsScanning(false);
-      // Reset input để có thể chụp lại tấm ảnh giống hệt nếu cần
+      event.target.value = '';
+    }
+  };
+
+  // Xử lý tải tài liệu các loại (PDF, DOCX, XLSX, TXT)
+  const handleDocumentUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+
+    if (isMicActive && recognitionRef.current) {
+      recognitionRef.current.abort();
+    }
+
+    try {
+      const fileName = file.name.toLowerCase();
+      let extractedText = "";
+
+      if (fileName.endsWith('.pdf')) {
+        // Gửi PDF qua Gemini
+        const base64Data = await fileToBase64(file);
+        extractedText = await extractTextWithGemini(base64Data, "application/pdf");
+      } 
+      else if (fileName.endsWith('.txt')) {
+        // Đọc trực tiếp text
+        extractedText = await file.text();
+      }
+      else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+        // Sử dụng mammoth để trích xuất text từ Word
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        extractedText = result.value;
+      }
+      else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Sử dụng xlsx để đọc text từ Excel
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        extractedText = XLSX.utils.sheet_to_txt(workbook.Sheets[sheetName]);
+      } else {
+        throw new Error("Định dạng tệp không được hỗ trợ.");
+      }
+      
+      setText((prev) => prev + (prev && prev.trim() ? '\n\n' : '') + extractedText.trim());
+    } catch (error: any) {
+      console.error("Document Upload Error:", error);
+      alert(`Lỗi xử lý tài liệu: ${error.message || 'Vui lòng thử lại.'}`);
+    } finally {
+      setIsScanning(false);
       event.target.value = '';
     }
   };
@@ -227,10 +294,10 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
           <span>{getMicButtonLabel()}</span>
         </button>
         
-        {/* Nút chụp ảnh sử dụng thẻ Label bọc thẻ Input File */}
+        {/* Nút 1: Chụp ảnh trực tiếp */}
         <label className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium cursor-pointer">
           <Camera size={20} />
-          <span>Chụp ảnh SGK</span>
+          <span>Chụp SGK</span>
           <input 
             type="file" 
             accept="image/*" 
@@ -239,12 +306,36 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
             className="hidden" 
           />
         </label>
+
+        {/* Nút 2: Tải ảnh có sẵn */}
+        <label className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium cursor-pointer">
+          <ImageIcon size={20} />
+          <span>Tải ảnh SGK</span>
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={handleImageUpload} 
+            className="hidden" 
+          />
+        </label>
+
+        {/* Nút 3: Tải tệp tài liệu (PDF/Word/Excel) */}
+        <label className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium cursor-pointer">
+          <FileText size={20} />
+          <span>Tải tệp PDF/Word</span>
+          <input 
+            type="file" 
+            accept=".pdf,.docx,.doc,.xlsx,.xls,.txt" 
+            onChange={handleDocumentUpload} 
+            className="hidden" 
+          />
+        </label>
       </div>
 
       {isScanning && (
         <div className="flex items-center justify-center gap-3 p-8 mb-4 border-2 border-krones-ice border-dashed rounded bg-krones-bg">
           <Loader2 className="text-krones-blue animate-spin" size={32} />
-          <p className="text-krones-navy font-medium text-lg">Đang quét chữ từ ảnh (Gemini OCR)...</p>
+          <p className="text-krones-navy font-medium text-lg">Đang đọc và xử lý tài liệu...</p>
         </div>
       )}
 
@@ -256,7 +347,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
               setText(e.target.value);
               setInterimText(''); 
             }}
-            placeholder="Nhập hoặc dán nội dung bài học vào đây..."
+            placeholder="Nhập hoặc tải tài liệu/ảnh bài học vào đây..."
             className="w-full min-h-[200px] p-4 border-2 border-krones-ice rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-y font-sans shadow-inner bg-gray-50/50"
           />
           {interimText && (
