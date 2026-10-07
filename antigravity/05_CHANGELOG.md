@@ -21,3 +21,9 @@ Tài liệu này lưu trữ toàn bộ lịch sử các thay đổi từ mốc k
 - **Fix: Change model to gemini-1.5-pro**: Chuyển đổi linh hoạt giữa các model từ `gemini-1.5-flash-latest` sang `gemini-1.5-pro` để tối ưu kết quả OCR.
 - **Feat: Add Fallback AI Model strategy and upgrade to Gemini 2.5 Flash**: Mặc định sử dụng model cực mạnh `gemini-2.5-flash` và cơ chế fallback tự động chuyển sang các model thế hệ trước (`2.0-flash`, `1.5-flash-002`, `1.5-pro-002`) nếu API gặp lỗi 404/503.
 - **Refactor: Move Gemini API call to Vercel Serverless Function**: (Quan trọng) Chuyển toàn bộ logic gọi Gemini API từ Client-side (Frontend React) sang Backend-side sử dụng **Vercel Serverless Function** (`/api/extract-text.ts`). Nâng cấp này giúp ẩn hoàn toàn API Key, vượt qua các lỗi CORS, và xử lý mượt mà cơ chế model fallback từ phía Server.
+
+## Giai đoạn 5: Hoàn thiện & Khắc phục rủi ro vận hành (Đóng Sprint 1)
+- **Feat: Add diagnose endpoint and improve Gemini 404 error handling**: Tạo endpoint `/api/diagnose.ts` để kiểm tra trực tiếp quyền hạn API Key từ Google AI Studio, giúp chẩn đoán nhanh lỗi 404. Cập nhật thông báo lỗi thân thiện trên giao diện.
+- **Fix: Hardcode gemini-2.5-flash in backend and remove fallback**: Xóa bỏ logic fallback quá tải gây hiểu nhầm ở Frontend, ép sử dụng duy nhất model được chỉ định trên Server.
+- **Fix: Update model to gemini-3.8-flash based on API deprecation notice**: Phát hiện lỗi `gemini-2.5-flash` bị khóa với tài khoản mới, lập tức cập nhật lên model mới nhất `gemini-3.8-flash` theo đúng khuyến cáo từ hệ thống Google.
+- **Feat: Add 503 retry and PDF loading UI**: Hoàn thiện Sprint 1 bằng cơ chế `generateWithRetry` (tự động chờ 1.5s và thử lại tối đa 2 lần khi gặp lỗi 503 High Demand, sau đó fallback sang `gemini-3.6-flash`). Bổ sung trạng thái Loading UI thân thiện phân biệt giữa việc đọc Ảnh và đọc file PDF dung lượng lớn. Đồng bộ luồng nén Canvas cho Camera.
