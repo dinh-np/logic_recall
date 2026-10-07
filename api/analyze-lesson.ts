@@ -1,82 +1,64 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+export const config = {
+  runtime: 'edge', // Chạy trên Edge Network, không bị giới hạn cold-start
+};
 
-export const maxDuration = 30; // Cho phép chạy tối đa 30 giây
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: Request) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
   }
 
   try {
-    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    const { text } = await req.json();
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: 'Thiếu API Key trên server' });
+      return new Response(JSON.stringify({ error: 'Thiếu API Key' }), { status: 500 });
     }
 
-    const { text } = req.body;
-    if (!text) {
-      return res.status(400).json({ error: 'Missing text content' });
-    }
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const MODELS_TO_TRY = ["gemini-3.8-flash", "gemini-3.6-flash"];
+    const prompt = `Bạn là trợ lý học tập. Hãy phân tích đoạn văn sau cho học sinh lớp 7:
+"${text}"
 
-    const generateWithRetry = async (modelInstance: any, promptText: string, maxRetries = 2) => {
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-          return await modelInstance.generateContent(promptText);
-        } catch (err: any) {
-          if (err?.message?.includes("503") && attempt < maxRetries) {
-            console.warn(`Gặp 503, thử lại lần ${attempt + 1} sau 1.5s...`);
-            await new Promise((r) => setTimeout(r, 1500));
-            continue;
-          }
-          throw err;
-        }
-      }
-    };
+Yêu cầu trả về đúng định dạng JSON:
+{
+  "formula_summary": [
+    {"formula": "công thức ngắn gọn", "description": "giải thích công thức"}
+  ],
+  "han_viet_dictionary": [
+    {"word": "từ khó", "root_meaning": "giải nghĩa ngắn", "logical_anchor": "ví dụ thực tế"}
+  ],
+  "keywords_level_1": ["từ nối 1", "từ nối 2"],
+  "keywords_level_2": ["từ khóa chính 1", "từ khóa chính 2"]
+}`;
 
-    let responseText = "";
-    let lastErr = null;
-
-    for (const modelName of MODELS_TO_TRY) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
+    // Gọi trực tiếp REST API qua fetch để đạt tốc độ tối đa
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.2, // Nhiệt độ thấp giúp AI phản hồi nhanh và chính xác
+            temperature: 0.2
           }
-        });
-        
-        const prompt = `Phân tích đoạn văn bản sau để phục vụ học thuộc lòng cho học sinh lớp 7.
-Trả về JSON với các trường:
-- han_viet_dictionary: danh sách từ Hán-Việt khó (word, root_meaning, logical_anchor).
-- formula_summary: công thức ngắn gọn dạng phương trình.
-- keywords_level_1: mảng các từ nối, từ phụ.
-- keywords_level_2: mảng các từ khóa cốt lõi quan trọng nhất.
-
-Văn bản:
-${text}`;
-
-        const result = await generateWithRetry(model, prompt);
-        responseText = result.response.text();
-        if (responseText) break;
-      } catch (err: any) {
-        lastErr = err;
-        console.warn(`Model ${modelName} thất bại:`, err.message);
+        })
       }
+    );
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error?.message || 'Lỗi từ Google API');
     }
 
-    if (!responseText && lastErr) {
-      throw lastErr;
-    }
+    const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsedData = JSON.parse(rawJson);
 
-    const json = JSON.parse(responseText);
-
-    return res.status(200).json(json);
+    return new Response(JSON.stringify(parsedData), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error: any) {
-    console.error('Analyze Lesson Error:', error);
-    return res.status(500).json({ error: error.message || 'Lỗi xử lý AI' });
+    console.error('Edge Analysis Error:', error);
+    return new Response(JSON.stringify({ error: error.message || 'Lỗi phân tích' }), { status: 500 });
   }
 }

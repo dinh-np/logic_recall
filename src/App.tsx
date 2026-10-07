@@ -10,6 +10,7 @@ function App() {
   const [lockedText, setLockedText] = useState('');
   const [lessonData, setLessonData] = useState<LessonData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [initialMode, setInitialMode] = useState<'ai' | 'manual'>('ai');
 
   const handleInputComplete = (text: string) => {
     setDraftText(text);
@@ -20,6 +21,7 @@ function App() {
     setLockedText(finalText);
     setStep('locked');
     setErrorMsg('');
+    setInitialMode('ai');
     
     try {
       const res = await fetch('/api/analyze-lesson', {
@@ -77,14 +79,31 @@ function App() {
             <h2 className="text-2xl font-bold text-krones-navy mb-2">Đang phân tích hệ thống logic...</h2>
             <p className="text-lg text-gray-600 mb-6">Mở khóa từ Hán - Việt và trích xuất phương trình.</p>
             {errorMsg ? (
-              <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 border border-red-200">
-                <AlertCircle />
-                <span>{errorMsg}</span>
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 border border-red-200">
+                  <AlertCircle />
+                  <span>{errorMsg}</span>
+                  <button 
+                    onClick={() => handleReviewLock(lockedText)} 
+                    className="ml-4 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  >
+                    Thử lại
+                  </button>
+                </div>
                 <button 
-                  onClick={() => handleReviewLock(lockedText)} 
-                  className="ml-4 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  onClick={() => {
+                    setLessonData({
+                      han_viet_dictionary: [],
+                      formula_summary: [],
+                      keywords_level_1: [],
+                      keywords_level_2: []
+                    });
+                    setInitialMode('manual');
+                    setStep('analyzed');
+                  }}
+                  className="mx-auto px-6 py-2 bg-krones-blue text-white rounded font-medium hover:bg-krones-navy transition-colors shadow-md"
                 >
-                  Thử lại
+                  Bỏ qua AI & Tự chọn từ khóa bằng tay
                 </button>
               </div>
             ) : (
@@ -100,7 +119,7 @@ function App() {
         )}
 
         {step === 'analyzed' && lessonData && (
-          <LogicBridge originalText={lockedText} data={lessonData} />
+          <LogicBridge originalText={lockedText} data={lessonData} initialMode={initialMode} />
         )}
       </main>
     </div>

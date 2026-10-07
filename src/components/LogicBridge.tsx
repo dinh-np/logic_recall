@@ -22,11 +22,12 @@ export interface LessonData {
 interface LogicBridgeProps {
   originalText: string;
   data: LessonData;
+  initialMode?: 'manual' | 'ai';
 }
 
-export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data }) => {
+export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, initialMode = 'ai' }) => {
   const [level, setLevel] = useState<number>(0);
-  const [mode, setMode] = useState<'manual' | 'ai'>('ai');
+  const [mode, setMode] = useState<'manual' | 'ai'>(initialMode);
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [peekWords, setPeekWords] = useState<Set<number>>(new Set());
   const [peekCount, setPeekCount] = useState(0);
