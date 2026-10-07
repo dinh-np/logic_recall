@@ -153,7 +153,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
   };
 
-  // Hàm gọi Gemini 1.5 Flash chung cho Hình ảnh và PDF
+  // Hàm gọi Gemini chung cho Hình ảnh và PDF kèm cơ chế Fallback model
   const extractTextWithGemini = async (base64Data: string, mimeType: string) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
@@ -161,22 +161,41 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Sử dụng model phiên bản ổn định (gemini-1.5-pro)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    
+    const MODEL_NAME = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
+    const FALLBACK_MODELS = [
+      MODEL_NAME,
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-flash-002",
+      "gemini-1.5-pro-002"
+    ];
     
     const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong ảnh/tài liệu này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
     
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Data
-        }
-      },
-      prompt
-    ]);
-    const response = await result.response;
-    return response.text().trim();
+    let lastError: any = null;
+
+    for (const modelName of FALLBACK_MODELS) {
+      try {
+        console.log(`Đang gọi model: ${modelName}...`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data
+            }
+          },
+          prompt
+        ]);
+        const response = await result.response;
+        return response.text().trim();
+      } catch (err: any) {
+        console.warn(`Model ${modelName} thất bại, chuyển sang model kế tiếp...`, err);
+        lastError = err;
+      }
+    }
+    throw lastError;
   };
 
   // OCR sử dụng input type=file cho Ảnh (Camera hoặc Thư viện)
