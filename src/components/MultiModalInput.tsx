@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import type { ChangeEvent } from 'react';
 import { Mic, MicOff, ClipboardPaste, Camera, Keyboard, CheckCircle, Loader2 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -6,25 +7,45 @@ interface MultiModalInputProps {
   onComplete: (text: string) => void;
 }
 
+// Helper nén ảnh bằng Canvas
+async function compressImageToJpegBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxWidth = 1200;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      // Luôn xuất ra định dạng image/jpeg chuẩn
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Cắt bỏ phần "data:image/jpeg;base64," để lấy raw base64
+      const base64Data = dataUrl.split(',')[1];
+      resolve(base64Data);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) => {
   const [text, setText] = useState('');
   const [interimText, setInterimText] = useState('');
   
-  // isMicActive: Trạng thái thực tế của phần cứng Micro
   const [isMicActive, setIsMicActive] = useState(false);
-  // isPaused: Trạng thái ngắt thu âm bằng phần mềm (bỏ qua text)
   const [isPaused, setIsPaused] = useState(false);
-  
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const recognitionRef = useRef<any>(null);
-  // Dùng ref để trong event listener (onresult) có thể đọc được trạng thái pause mới nhất
   const isPausedRef = useRef(false);
 
-  // Sync state vào ref
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
@@ -46,7 +67,6 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       recognition.onend = () => {
         setIsMicActive(false);
         setInterimText('');
-        // Nếu hệ thống tự tắt mic (do im lặng quá lâu), reset lại nút pause
         setIsPaused(false); 
       };
       
@@ -58,7 +78,6 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       };
 
       recognition.onresult = (event: any) => {
-        // Nếu người dùng đã bấm nút Tạm dừng (mềm), bỏ qua hoàn toàn các kết quả thu được
         if (isPausedRef.current) return;
 
         let currentInterim = '';
@@ -82,7 +101,6 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       recognitionRef.current = recognition;
     }
 
-    // Cleanup triệt để khi component unmount
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.abort(); 
@@ -97,15 +115,11 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
     
     if (isMicActive) {
-      // Nếu mic đang chạy, chỉ chuyển đổi trạng thái phần mềm (isPaused)
-      // KHÔNG gọi stop() để tránh thiết bị iOS/Android hỏi lại quyền khi mở lại
       setIsPaused(!isPaused);
       if (!isPaused) {
-        // Nếu đang chuyển sang Paused, dọn sạch interim text trên màn hình
         setInterimText('');
       }
     } else {
-      // Nếu mic chưa bật, bật nó lên
       try {
         setIsPaused(false);
         recognitionRef.current.start();
@@ -124,57 +138,35 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     }
   };
 
-  const handleCameraCapture = () => {
-    setIsCameraOpen(true);
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      })
-      .catch(err => {
-        console.error(err);
-        alert('Không thể mở camera. Bạn có thể chưa cấp quyền.');
-        setIsCameraOpen(false);
-      });
-  };
+  // OCR sử dụng input type=file để tương thích tốt nhất với iOS/Android Camera
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const captureImage = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-    
-    if (video.srcObject) {
-      const tracks = (video.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-    }
-    setIsCameraOpen(false);
     setIsScanning(true);
 
-    // Tự động dừng Mic hoàn toàn nếu đang chụp hình (giảm tải thiết bị)
     if (isMicActive && recognitionRef.current) {
       recognitionRef.current.abort();
     }
 
     try {
-      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+      const base64Data = await compressImageToJpegBase64(file);
+
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Thiếu biến môi trường VITE_GEMINI_API_KEY");
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = "Hãy trích xuất chính xác 100% toàn bộ văn bản tiếng Việt có trong ảnh chụp trang sách này. Không thêm lời mở đầu hay giải thích, chỉ trả về nội dung văn bản thuần túy.";
+      const prompt = "Hãy đọc và trích xuất toàn bộ văn bản tiếng Việt có trong trang sách này. Chỉ trả về nội dung văn bản thuần túy, không thêm lời giải thích hay định dạng markdown.";
       
       const imageParts = [
         {
           inlineData: {
-            data: base64Image.split(',')[1],
-            mimeType: "image/jpeg"
+            mimeType: "image/jpeg",
+            data: base64Data
           }
         }
       ];
@@ -184,16 +176,17 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
       const extractedText = response.text().trim();
       
       setText((prev) => prev + (prev && prev.trim() ? '\n\n' : '') + extractedText);
-    } catch (error) {
+    } catch (error: any) {
       console.error("OCR Error:", error);
-      alert('Lỗi trích xuất văn bản từ ảnh. Vui lòng thử lại.');
+      alert(`Lỗi trích xuất: ${error.message || 'Vui lòng thử lại.'}`);
     } finally {
       setIsScanning(false);
+      // Reset input để có thể chụp lại tấm ảnh giống hệt nếu cần
+      event.target.value = '';
     }
   };
 
   const handleComplete = () => {
-    // Tắt hẳn mic triệt để khi chốt khóa text
     if (recognitionRef.current) {
       recognitionRef.current.abort();
     }
@@ -202,7 +195,6 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
 
   const displayText = text + (interimText ? (text && text.trim() ? ' ' : '') + interimText : '');
 
-  // Xác định chữ và icon cho nút Mic
   const getMicButtonLabel = () => {
     if (isMicActive && !isPaused) return 'Đang nghe... (Chạm để Tạm dừng)';
     if (isMicActive && isPaused) return 'Tiếp tục đọc (Mic)';
@@ -234,37 +226,20 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
           {isMicActive && !isPaused ? <MicOff size={20} /> : <Mic size={20} />}
           <span>{getMicButtonLabel()}</span>
         </button>
-        <button onClick={handleCameraCapture} className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium">
+        
+        {/* Nút chụp ảnh sử dụng thẻ Label bọc thẻ Input File */}
+        <label className="flex items-center gap-2 px-4 py-2 bg-krones-ice text-krones-navy rounded hover:bg-krones-blue hover:text-white transition-colors touch-target font-medium cursor-pointer">
           <Camera size={20} />
           <span>Chụp ảnh SGK</span>
-        </button>
+          <input 
+            type="file" 
+            accept="image/*" 
+            capture="environment" 
+            onChange={handleImageUpload} 
+            className="hidden" 
+          />
+        </label>
       </div>
-
-      {isCameraOpen && (
-        <div className="relative mb-4 rounded overflow-hidden bg-black aspect-video flex items-center justify-center shadow-inner">
-          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-          <canvas ref={canvasRef} className="hidden" />
-          <button 
-            onClick={captureImage}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-krones-blue flex items-center justify-center touch-target hover:bg-krones-ice transition-colors shadow-lg"
-          >
-            <Camera size={24} className="text-krones-navy" />
-          </button>
-          
-          <button 
-            onClick={() => {
-              setIsCameraOpen(false);
-              if (videoRef.current && videoRef.current.srcObject) {
-                const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-                tracks.forEach(track => track.stop());
-              }
-            }}
-            className="absolute top-4 right-4 bg-black/50 text-white px-4 py-2 rounded hover:bg-black/70 transition-colors"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
 
       {isScanning && (
         <div className="flex items-center justify-center gap-3 p-8 mb-4 border-2 border-krones-ice border-dashed rounded bg-krones-bg">
@@ -279,7 +254,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
             value={displayText}
             onChange={(e) => {
               setText(e.target.value);
-              setInterimText(''); // Xóa interim nếu người dùng tự gõ can thiệp
+              setInterimText(''); 
             }}
             placeholder="Nhập hoặc dán nội dung bài học vào đây..."
             className="w-full min-h-[200px] p-4 border-2 border-krones-ice rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-y font-sans shadow-inner bg-gray-50/50"
