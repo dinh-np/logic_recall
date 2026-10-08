@@ -7,10 +7,42 @@ import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 
 import type { Subject } from '../types/index';
+import { RichTextEditor } from './RichTextEditor';
 
 interface MultiModalInputProps {
   onComplete: (text: string, subject: Subject) => void;
 }
+
+const htmlToMarkdown = (html: string) => {
+  let md = html;
+  
+  // Format tags
+  md = md.replace(/<b>(.*?)<\/b>/gi, '**$1**');
+  md = md.replace(/<strong>(.*?)<\/strong>/gi, '**$1**');
+  md = md.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+  md = md.replace(/<em>(.*?)<\/em>/gi, '*$1*');
+  md = md.replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>');
+  
+  // Headings
+  md = md.replace(/<h1>(.*?)<\/h1>/gi, '\n# $1\n');
+  md = md.replace(/<h2>(.*?)<\/h2>/gi, '\n## $1\n');
+  md = md.replace(/<h3>(.*?)<\/h3>/gi, '\n### $1\n');
+  md = md.replace(/<h4>(.*?)<\/h4>/gi, '\n#### $1\n');
+  
+  // Replace divs, p, br with newlines
+  md = md.replace(/<div><br><\/div>/gi, '\n');
+  md = md.replace(/<div>(.*?)<\/div>/gi, '\n$1');
+  md = md.replace(/<p>(.*?)<\/p>/gi, '\n$1\n');
+  md = md.replace(/<br\s*\/?>/gi, '\n');
+
+  // Strip any remaining html tags
+  md = md.replace(/<[^>]+>/g, '');
+
+  // decode HTML entities
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = md;
+  return textarea.value.trim();
+};
 
 // Helper nén ảnh bằng Canvas
 async function compressImageToJpegBase64(file: File): Promise<string> {
@@ -65,19 +97,10 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
   
   const recognitionRef = useRef<any>(null);
   const isPausedRef = useRef(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
-  // Tự động co giãn Textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [text, interimText, isScanning]);
 
   // Khởi tạo Speech Recognition
   useEffect(() => {
@@ -286,7 +309,7 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
     if (recognitionRef.current) {
       recognitionRef.current.abort();
     }
-    onComplete(text, subject);
+    onComplete(htmlToMarkdown(displayText), subject);
   };
 
   const displayText = text + (interimText ? (text && text.trim() ? ' ' : '') + interimText : '');
@@ -399,15 +422,13 @@ export const MultiModalInput: React.FC<MultiModalInputProps> = ({ onComplete }) 
 
       {!isScanning && (
         <div className="relative mb-4">
-          <textarea
-            ref={textareaRef}
+          <RichTextEditor
             value={displayText}
-            onChange={(e) => {
-              setText(e.target.value);
+            onChange={(newText) => {
+              setText(newText);
               setInterimText(''); 
             }}
             placeholder="Nhập hoặc tải tài liệu/ảnh bài học vào đây..."
-            className="w-full min-h-[200px] p-4 border-2 border-krones-ice rounded focus:border-krones-blue outline-none text-lg leading-relaxed resize-none overflow-hidden font-sans shadow-inner bg-gray-50/50"
           />
           {interimText && (
             <span className="absolute bottom-4 right-4 text-sm font-semibold text-krones-blue animate-pulse bg-krones-ice px-2 py-1 rounded">
