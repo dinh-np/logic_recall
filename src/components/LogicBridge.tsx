@@ -3,6 +3,7 @@ import { BookOpen, BrainCircuit, Save, Check, Plus, X, Image as ImageIcon } from
 import { DictionaryPopup } from './DictionaryPopup';
 import { lookupTerm, parseMeaning, type DictionaryEntry } from '../services/dictionaryService';
 import { saveLessonToFirestore, saveWordToDictionary } from '../services/firebase';
+import { HandwritingVerification } from './HandwritingVerification';
 import type { Subject, SavedLesson } from '../types/index';
 
 export interface HanViet {
@@ -39,6 +40,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentSubject, setCurrentSubject] = useState<Subject>(subject);
+  const [showVerification, setShowVerification] = useState(false);
 
   // Dictionary Popup State
   const [dictEntry, setDictEntry] = useState<DictionaryEntry | null>(null);
@@ -283,6 +285,20 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     );
   };
 
+  if (showVerification) {
+    return (
+      <HandwritingVerification 
+        originalText={originalText}
+        keywordsLevel2={data.keywords_level_2}
+        onBack={() => setShowVerification(false)}
+        onComplete={() => {
+          setShowVerification(false);
+          window.scrollTo(0, 0);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 w-full max-w-4xl mx-auto">
       
@@ -441,6 +457,15 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
           onMouseUp={handleTextSelection}
         >
           {words.map((word, index) => renderWord(word, index))}
+        </div>
+        
+        <div className="mt-6 flex justify-center">
+          <button 
+            onClick={() => setShowVerification(true)}
+            className="flex items-center gap-2 px-8 py-4 bg-krones-navy text-white text-lg font-bold rounded-xl shadow-lg hover:bg-krones-deep-hover hover:scale-105 transition-all"
+          >
+            📝 Chấm điểm bài viết tay
+          </button>
         </div>
       </div>
 
