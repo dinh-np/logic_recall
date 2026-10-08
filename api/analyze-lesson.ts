@@ -18,12 +18,9 @@ function generateLocalFallback(text: string) {
         description: "Trọng tâm ghi nhớ"
       }
     ],
-    han_viet_dictionary: [
-      { word: "Truyền thống", root_meaning: "Truyền: trao lại; Thống: mối nối liền", logical_anchor: "Kế thừa liên tục qua nhiều thế hệ" },
-      { word: "Lưu truyền", root_meaning: "Lưu: giữ lại; Truyền: lan tỏa", logical_anchor: "Lưu trữ dữ liệu và chia sẻ tiếp" }
-    ],
+    han_viet_dictionary: [],
     keywords_level_1: kw1.length > 0 ? kw1 : ["và", "là", "của", "được"],
-    keywords_level_2: kw2.length > 0 ? kw2 : ["giá trị tốt đẹp", "lưu truyền", "phát triển"]
+    keywords_level_2: kw2.length > 0 ? kw2 : ["quan trọng", "cốt lõi", "ghi nhớ"]
   };
 }
 
