@@ -33,7 +33,8 @@ export const getLessonsFromFirestore = async (subjectFilter?: Subject | 'Tất c
   const querySnapshot = await getDocs(q);
   const lessons: SavedLesson[] = [];
   querySnapshot.forEach((doc) => {
-    lessons.push({ id: doc.id, ...doc.data() } as SavedLesson);
+    const data = doc.data() as any;
+    lessons.push({ id: doc.id, ...data } as SavedLesson);
   });
   
   return lessons;

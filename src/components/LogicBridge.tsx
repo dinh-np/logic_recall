@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookOpen, Calculator, BrainCircuit, Save, Check } from 'lucide-react';
+import { BookOpen, BrainCircuit, Save, Check } from 'lucide-react';
 import { DictionaryPopup } from './DictionaryPopup';
 import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
 import { saveLessonToFirestore, saveWordToDictionary } from '../services/firebase';
