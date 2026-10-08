@@ -19,3 +19,18 @@
     @apply text-diff-missing line-through bg-diff-missing/10 px-1 rounded;
   }
 }
+
+@layer components {
+  .rich-text-editor h1 {
+    @apply text-3xl font-bold mt-4 mb-2;
+  }
+  .rich-text-editor h2 {
+    @apply text-2xl font-bold mt-3 mb-2;
+  }
+  .rich-text-editor h3 {
+    @apply text-xl font-bold mt-2 mb-1;
+  }
+  .rich-text-editor p {
+    @apply mb-1;
+  }
+}

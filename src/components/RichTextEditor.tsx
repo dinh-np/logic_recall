@@ -99,7 +99,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
           contentEditable
           onInput={handleInput}
           onBlur={handleInput}
-          className="w-full min-h-[200px] p-4 outline-none text-lg leading-relaxed font-sans prose max-w-none"
+          className="w-full min-h-[200px] p-4 outline-none text-lg leading-relaxed font-sans rich-text-editor"
           style={{ whiteSpace: 'pre-wrap' }}
         />
       </div>
