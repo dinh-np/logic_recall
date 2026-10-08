@@ -21,7 +21,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ wordSearched, 
 
   return (
     <div 
-      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-krones-blue/20 p-4 w-80 animate-in fade-in zoom-in duration-200"
+      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-krones-blue/20 p-4 w-80 max-h-[70vh] overflow-y-auto animate-in fade-in zoom-in duration-200"
       style={{ left, top }}
     >
       <button 
@@ -40,8 +40,18 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ wordSearched, 
         <div className="flex flex-col gap-3 pt-2">
           <h4 className="font-bold text-lg text-[#003366] capitalize">{entry.word}</h4>
           
-          <div className="text-sm text-gray-700 font-medium">
-            {entry.meaning}
+          <div className="text-sm text-gray-700 font-medium whitespace-pre-wrap break-words">
+            {(() => {
+              let m = entry.meaning;
+              // Clean up legacy "X: y; Z: w. " format
+              if (m.includes('. ')) {
+                const firstPart = m.split('. ')[0];
+                if (firstPart.includes(':')) {
+                  m = m.substring(firstPart.length + 2).trim();
+                }
+              }
+              return m;
+            })()}
           </div>
           
           <div className="text-sm text-gray-600 italic">
