@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Calculator, BrainCircuit, Save, Check } from 'lucide-react';
 import { DictionaryPopup } from './DictionaryPopup';
 import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
-import { saveLessonToFirestore } from '../services/firebase';
+import { saveLessonToFirestore, saveWordToDictionary } from '../services/firebase';
 import type { Subject, SavedLesson } from '../types/index';
 
 export interface HanViet {
@@ -44,6 +44,10 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const [dictEntry, setDictEntry] = useState<DictionaryEntry | null>(null);
   const [dictLoading, setDictLoading] = useState(false);
   const [popupPos, setPopupPos] = useState<{ x: number, y: number } | null>(null);
+  
+  const [dictionaryList, setDictionaryList] = useState<HanViet[]>(data.han_viet_dictionary || []);
+  const [lookupList, setLookupList] = useState<string[]>([]);
+  const [wordSearched, setWordSearched] = useState<string>('');
 
   // Phân tách từ, dấu câu, khoảng trắng
   const words: string[] = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
@@ -61,9 +65,18 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
       words.forEach((w, i) => {
         const cleanWord = w.trim().toLowerCase();
         if (!cleanWord) return;
-        if (level >= 1 && l1Words.has(cleanWord)) newHidden.add(i);
-        if (level >= 2 && l2Words.has(cleanWord)) newHidden.add(i);
-        if (level === 3 && /\w/u.test(w)) newHidden.add(i);
+        
+        // Pseudo-random based on index for a stable continuous slider (0-100)
+        let score = (i * 137) % 100; 
+        
+        // L2 words hide easier (score reduced so they hide at lower slider levels)
+        if (l2Words.has(cleanWord)) score = score * 0.3;
+        else if (l1Words.has(cleanWord)) score = 30 + (score * 0.4);
+        else score = 70 + (score * 0.3);
+        
+        if (level > score) {
+          newHidden.add(i);
+        }
       });
       setHiddenWords(newHidden);
     } else {
@@ -104,6 +117,8 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     // Bỏ qua nếu chọn quá dài (không phải 1-2 từ)
     if (text.length === 0 || text.split(/\s+/).length > 4) return;
 
+    setWordSearched(text);
+
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     
@@ -115,6 +130,43 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     const entry = await lookupTerm(text);
     setDictEntry(entry);
     setDictLoading(false);
+  };
+
+  const handleLookupRetry = async (word: string) => {
+    setWordSearched(word);
+    setPopupPos({ x: window.innerWidth / 2 - 160, y: window.innerHeight / 2 - 100 });
+    setDictLoading(true);
+    setDictEntry(null);
+    const entry = await lookupTerm(word);
+    setDictEntry(entry);
+    setDictLoading(false);
+  };
+
+  const handleSaveToLookup = (word: string) => {
+    if (!lookupList.includes(word)) {
+      setLookupList([...lookupList, word]);
+    }
+    setPopupPos(null);
+  };
+
+  const handleSaveToDictionary = async (entry: DictionaryEntry) => {
+    const newEntry: HanViet = {
+      word: entry.word,
+      root_meaning: entry.meaning,
+      logical_anchor: `[${entry.english}] ${entry.example}`
+    };
+    
+    if (!dictionaryList.find(d => d.word.toLowerCase() === newEntry.word.toLowerCase())) {
+      setDictionaryList([...dictionaryList, newEntry]);
+      setLookupList(lookupList.filter(w => w.toLowerCase() !== newEntry.word.toLowerCase()));
+    }
+    setPopupPos(null);
+    
+    try {
+      await saveWordToDictionary(newEntry);
+    } catch (e) {
+      console.error("Failed to save word to dictionary", e);
+    }
   };
 
   const handleSaveToLibrary = async () => {
@@ -188,11 +240,6 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     const isPeeked = peekWords.has(index);
 
     if (isHidden && !isPeeked) {
-      let hint = "......";
-      if (level === 2 && l2Words.has(word.trim().toLowerCase())) {
-        hint = word.charAt(0) + "......";
-      }
-
       return (
         <span 
           key={index} 
@@ -200,7 +247,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
           className="inline-block bg-krones-ice text-transparent border-b-2 border-krones-blue cursor-pointer px-1 mx-1 rounded select-none relative transition-all"
           title="Chạm để xem gợi ý"
         >
-          <span className="text-krones-blue font-bold opacity-70 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none pointer-events-none">{hint}</span>
+          <span className="text-krones-blue font-bold opacity-70 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none pointer-events-none">[......]</span>
           <span className="opacity-0">{word}</span>
         </span>
       );
@@ -261,44 +308,55 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
         </button>
       </div>
 
-      {/* 1. Hán Việt Dictionary */}
-      {data.han_viet_dictionary && data.han_viet_dictionary.length > 0 && (
-        <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
-          <h3 className="text-xl font-bold text-krones-navy mb-4 flex items-center gap-2">
-            <BookOpen className="text-krones-blue" />
-            Từ điển Hán - Việt
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            {data.han_viet_dictionary.map((hv, idx) => (
-              <div key={idx} className="p-4 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow">
-                <div className="font-bold text-lg text-krones-navy mb-1">{hv.word}</div>
-                <div className="text-sm font-medium text-krones-blue mb-2">{hv.root_meaning}</div>
-                <div className="text-sm text-gray-600 italic">"{hv.logical_anchor}"</div>
+      {/* Khối TỪ KHÓ */}
+      <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
+        <h3 className="text-xl font-bold text-krones-navy mb-4 flex items-center gap-2">
+          <BookOpen className="text-krones-blue" />
+          TỪ KHÓ
+        </h3>
+        
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Cột 1: TỪ ĐIỂN */}
+          <div>
+            <h4 className="text-lg font-bold text-krones-blue mb-4 border-b pb-2">TỪ ĐIỂN</h4>
+            {dictionaryList.length > 0 ? (
+              <div className="grid gap-3">
+                {dictionaryList.map((hv, idx) => (
+                  <div key={idx} className="p-3 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleLookupRetry(hv.word)}>
+                    <div className="font-bold text-base text-krones-navy mb-1">{hv.word}</div>
+                    <div className="text-sm font-medium text-krones-blue mb-1">{hv.root_meaning}</div>
+                    <div className="text-sm text-gray-600 italic">"{hv.logical_anchor}"</div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <p className="text-gray-500 text-sm italic">Chưa có từ nào trong từ điển.</p>
+            )}
+          </div>
+          
+          {/* Cột 2: TRA CỨU */}
+          <div>
+            <h4 className="text-lg font-bold text-orange-500 mb-4 border-b pb-2">TRA CỨU</h4>
+            {lookupList.length > 0 ? (
+              <div className="grid gap-3">
+                {lookupList.map((word, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-orange-50/50 rounded-lg border border-orange-100">
+                    <span className="font-bold text-orange-700">{word}</span>
+                    <button 
+                      onClick={() => handleLookupRetry(word)}
+                      className="text-xs bg-orange-100 text-orange-700 px-3 py-1.5 rounded hover:bg-orange-200 transition-colors font-medium"
+                    >
+                      Tra cứu lại
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm italic">Không có từ nào cần tra cứu.</p>
+            )}
           </div>
         </div>
-      )}
-
-      {/* 2. Formula Summary */}
-      {data.formula_summary && data.formula_summary.length > 0 && (
-        <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
-          <h3 className="text-xl font-bold text-krones-navy mb-4 flex items-center gap-2">
-            <Calculator className="text-krones-blue" />
-            Hệ thống Công thức
-          </h3>
-          <div className="space-y-3">
-            {data.formula_summary.map((f, idx) => (
-              <div key={idx} className="flex flex-col md:flex-row md:items-center gap-4 p-4 bg-krones-bg rounded-lg border border-gray-100">
-                <div className="font-mono font-bold text-lg text-krones-navy bg-white border border-krones-blue px-3 py-1 rounded shadow-sm">
-                  {f.formula}
-                </div>
-                <div className="text-gray-700 font-medium">{f.description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* 3. The Vanishing Game */}
       <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
@@ -334,13 +392,14 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
               <input 
                 type="range" 
                 min="0" 
-                max="3" 
+                max="100" 
+                step="1"
                 value={level} 
                 onChange={(e) => setLevel(Number(e.target.value))}
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-krones-blue"
               />
               <span className="text-sm font-bold text-krones-blue w-28 text-center bg-white py-1 rounded shadow-sm border border-gray-100">
-                {level === 0 ? 'Hiện cả (0%)' : level === 1 ? 'Từ nối (30%)' : level === 2 ? 'Từ khóa (70%)' : 'Ẩn hết (100%)'}
+                Ẩn {level}%
               </span>
             </div>
           )}
@@ -355,10 +414,13 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
       </div>
 
       <DictionaryPopup 
+        wordSearched={wordSearched}
         entry={dictEntry}
         loading={dictLoading}
         position={popupPos}
         onClose={() => setPopupPos(null)}
+        onSaveToLookup={handleSaveToLookup}
+        onSaveToDictionary={handleSaveToDictionary}
       />
       
     </div>

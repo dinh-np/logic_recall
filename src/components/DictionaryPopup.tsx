@@ -1,15 +1,18 @@
 import React from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, BookmarkPlus, Library } from 'lucide-react';
 import type { DictionaryEntry } from '../services/dictionaryService';
 
 interface DictionaryPopupProps {
+  wordSearched?: string;
   entry: DictionaryEntry | null;
   loading: boolean;
   position: { x: number; y: number } | null;
   onClose: () => void;
+  onSaveToLookup?: (word: string) => void;
+  onSaveToDictionary?: (entry: DictionaryEntry) => void;
 }
 
-export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ entry, loading, position, onClose }) => {
+export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ wordSearched, entry, loading, position, onClose, onSaveToLookup, onSaveToDictionary }) => {
   if (!position) return null;
 
   // Tính toán vị trí hiển thị hợp lý để không bị tràn màn hình
@@ -34,23 +37,43 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ entry, loading
           <span className="text-sm font-medium">Đang dùng AI tra cứu...</span>
         </div>
       ) : entry ? (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between pe-4">
-            <h4 className="font-bold text-lg text-[#003366] capitalize">{entry.word}</h4>
+        <div className="flex flex-col gap-3 pt-2">
+          <h4 className="font-bold text-lg text-[#003366] capitalize">{entry.word}</h4>
+          
+          <div className="text-sm text-gray-700 font-medium">
+            {entry.meaning}
           </div>
+          
           <div className="inline-flex w-fit items-center px-2 py-1 bg-[#0066B2]/10 text-[#0066B2] text-xs font-semibold rounded border border-[#0066B2]/20">
-            [ {entry.english} ]
+            [ English Translation: {entry.english} ]
           </div>
-          <div className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
-            <span className="font-semibold text-krones-navy">Ý nghĩa:</span> {entry.meaning}
+          
+          <div className="text-sm text-gray-600 italic border-l-2 border-[#0066B2] pl-2 mt-1">
+            - {entry.example}
           </div>
-          <div className="text-sm text-gray-600 italic border-l-2 border-[#0066B2] pl-2">
-            "{entry.example}"
-          </div>
+
+          {onSaveToDictionary && (
+            <button 
+              onClick={() => onSaveToDictionary(entry)}
+              className="mt-2 w-full flex items-center justify-center gap-2 bg-[#003366] hover:bg-[#002244] text-white text-sm py-2 rounded-lg transition-colors"
+            >
+              <Library size={16} /> Lưu vào Tự điển
+            </button>
+          )}
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-4 text-sm">
-          Không tìm thấy kết quả hoặc lỗi mạng.
+        <div className="flex flex-col gap-4 py-2">
+          <div className="text-center text-gray-500 text-sm">
+            Không tìm thấy kết quả hoặc lỗi mạng.
+          </div>
+          {wordSearched && onSaveToLookup && (
+            <button 
+              onClick={() => onSaveToLookup(wordSearched)}
+              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm py-2 rounded-lg transition-colors"
+            >
+              <BookmarkPlus size={16} /> Lưu vào mục Tra cứu
+            </button>
+          )}
         </div>
       )}
     </div>

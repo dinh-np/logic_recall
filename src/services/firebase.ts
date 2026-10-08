@@ -42,3 +42,8 @@ export const getLessonsFromFirestore = async (subjectFilter?: Subject | 'Tất c
 export const deleteLessonFromFirestore = async (id: string) => {
   await deleteDoc(doc(db, 'lessons', id));
 };
+
+export const saveWordToDictionary = async (entry: any) => {
+  const docRef = await addDoc(collection(db, 'dictionary'), entry);
+  return docRef.id;
+};
