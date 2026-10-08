@@ -155,8 +155,8 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const handleSaveToDictionary = async (entry: DictionaryEntry) => {
     const newEntry: HanViet = {
       word: entry.word,
-      root_meaning: entry.meaning,
-      logical_anchor: `[${entry.english}] ${entry.example}`
+      root_meaning: `[${entry.english}] ${entry.example}`,
+      logical_anchor: entry.meaning
     };
     
     if (!dictionaryList.find(d => d.word.toLowerCase() === newEntry.word.toLowerCase())) {
@@ -343,7 +343,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
                 {dictionaryList.map((hv, idx) => (
                   <div key={idx} className="p-3 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleLookupRetry(hv.word)}>
                     <div className="font-bold text-base text-krones-navy mb-1">{hv.word}</div>
-                    <div className="text-sm font-medium text-krones-blue">{hv.root_meaning}</div>
+                    <div className="text-sm font-medium text-krones-blue">{hv.logical_anchor}</div>
                   </div>
                 ))}
               </div>
