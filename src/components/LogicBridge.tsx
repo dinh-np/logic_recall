@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, BrainCircuit, Save, Check, Plus, X, Image as ImageIcon } from 'lucide-react';
 import { DictionaryPopup } from './DictionaryPopup';
-import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
+import { lookupTerm, parseMeaning, type DictionaryEntry } from '../services/dictionaryService';
 import { saveLessonToFirestore, saveWordToDictionary } from '../services/firebase';
 import type { Subject, SavedLesson } from '../types/index';
 
@@ -343,7 +343,20 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
                 {dictionaryList.map((hv, idx) => (
                   <div key={idx} className="p-3 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleLookupRetry(hv.word)}>
                     <div className="font-bold text-base text-krones-navy mb-1">{hv.word}</div>
-                    <div className="text-sm font-medium text-krones-blue">{hv.logical_anchor}</div>
+                    <div className="flex flex-col gap-1 mt-1">
+                      {(() => {
+                        const { etymology, context } = parseMeaning(hv.logical_anchor);
+                        if (context) {
+                          return (
+                            <>
+                              <span className="text-sm font-medium text-krones-blue">{context}</span>
+                              <span className="text-xs text-krones-blue/80 italic">{etymology}</span>
+                            </>
+                          );
+                        }
+                        return <span className="text-sm font-medium text-krones-blue">{hv.logical_anchor}</span>;
+                      })()}
+                    </div>
                   </div>
                 ))}
               </div>

@@ -12,6 +12,29 @@ export interface DictionaryEntry {
   english: string;
 }
 
+export const parseMeaning = (meaning: string): { etymology: string, context: string } => {
+  let etymology = meaning;
+  let context = "";
+
+  // Match "Etymology (Context)"
+  const parenMatch = meaning.match(/^(.*)\s*\((.*)\)\s*\.?$/);
+  if (parenMatch) {
+    etymology = parenMatch[1].trim();
+    context = parenMatch[2].trim();
+  } 
+  // Match "Etymology. Context"
+  else if (meaning.includes('. ')) {
+    const parts = meaning.split('. ');
+    const firstPart = parts[0];
+    if (firstPart.includes(':')) {
+      etymology = firstPart.trim();
+      context = parts.slice(1).join('. ').trim();
+    }
+  }
+
+  return { etymology, context };
+};
+
 export const lookupTerm = async (word: string): Promise<DictionaryEntry | null> => {
   const cleanWord = word.trim().toLowerCase();
   if (!cleanWord) return null;

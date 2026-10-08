@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Loader2, BookmarkPlus, Library } from 'lucide-react';
 import type { DictionaryEntry } from '../services/dictionaryService';
+import { parseMeaning } from '../services/dictionaryService';
 
 interface DictionaryPopupProps {
   wordSearched?: string;
@@ -40,17 +41,18 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ wordSearched, 
         <div className="flex flex-col gap-3 pt-2">
           <h4 className="font-bold text-lg text-[#003366] capitalize">{entry.word}</h4>
           
-          <div className="text-sm text-gray-700 font-medium whitespace-pre-wrap break-words">
+          <div className="flex flex-col gap-1">
             {(() => {
-              let m = entry.meaning;
-              // Clean up legacy "X: y; Z: w. " format
-              if (m.includes('. ')) {
-                const firstPart = m.split('. ')[0];
-                if (firstPart.includes(':')) {
-                  m = m.substring(firstPart.length + 2).trim();
-                }
+              const { etymology, context } = parseMeaning(entry.meaning);
+              if (context) {
+                return (
+                  <>
+                    <div className="text-sm font-medium text-krones-blue">{context}</div>
+                    <div className="text-xs text-gray-500 italic border-t pt-1 mt-1 border-gray-100">{etymology}</div>
+                  </>
+                );
               }
-              return m;
+              return <div className="text-sm font-medium text-gray-700">{entry.meaning}</div>;
             })()}
           </div>
           
