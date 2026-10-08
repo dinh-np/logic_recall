@@ -13,16 +13,16 @@ Bạn là Kỹ sư phần mềm Fullstack cấp cao và Chuyên gia UI/UX. Bạn
 3. **Thực thi từng bước (Step-by-step):** Viết code hoàn chỉnh, có type definition rõ ràng, không dùng placeholder dạng `// TODO: implement later`. Sau mỗi component phải đảm bảo code build không lỗi TypeScript.
 
 ## 3. CHECKLIST TRIỂN KHAI THEO SPRINT
-- [ ] **Sprint 1: Core Setup & Multi-modal Input**
+- [x] **Sprint 1: Core Setup & Multi-modal Input**
   - Khởi tạo React + Vite + TypeScript + Tailwind CSS theo theme Krones Blue.
   - Cấu hình PWA manifest và service worker.
   - Hoàn thiện 4 cổng input (Gõ tay, Paste, Web Speech tiếng Việt, Chụp ảnh gửi OCR).
   - Hoàn thiện màn hình đối chiếu & tự rà soát văn bản gốc (Self-Editing).
-- [ ] **Sprint 2: Logic Bridge & The Vanishing Game**
+- [x] **Sprint 2: Logic Bridge & The Vanishing Game**
   - Bảng tra cứu từ Hán-Việt module hóa và Formula View.
   - Component xóa chữ 3 cấp độ (30%, 70%, 100%) kèm tính năng chạm lật thẻ (Peek).
   - Hỗ trợ cả 2 chế độ: Chọn từ khóa thủ công (Manual) và AI tự phân tích.
-- [ ] **Sprint 3: Handwriting OCR & Diff Engine**
+- [x] **Sprint 3: Handwriting OCR & Diff Engine**
   - Module chụp ảnh bài làm viết tay ra giấy của con.
   - Kết nối Gemini Vision đọc chữ viết tay tiếng Việt và so khớp barem điểm.
   - Render báo cáo Diff Xanh lá / Đỏ gạch ngang trực quan.
