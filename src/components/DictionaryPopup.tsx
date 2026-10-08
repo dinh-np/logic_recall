@@ -44,14 +44,14 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({ wordSearched, 
             {entry.meaning}
           </div>
           
-          <div className="inline-flex w-fit items-center px-2 py-1 bg-[#0066B2]/10 text-[#0066B2] text-xs font-semibold rounded border border-[#0066B2]/20">
-            [ English Translation: {entry.english} ]
-          </div>
-          
-          <div className="text-sm text-gray-600 italic border-l-2 border-[#0066B2] pl-2 mt-1">
+          <div className="text-sm text-gray-600 italic">
             - {entry.example}
           </div>
 
+          <div className="inline-flex w-fit items-center px-2 py-1 bg-[#0066B2]/10 text-[#0066B2] text-xs font-semibold rounded border border-[#0066B2]/20">
+            [ {entry.english} ]
+          </div>
+          
           {onSaveToDictionary && (
             <button 
               onClick={() => onSaveToDictionary(entry)}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookOpen, BrainCircuit, Save, Check } from 'lucide-react';
+import { BookOpen, BrainCircuit, Save, Check, Plus, X, Image as ImageIcon } from 'lucide-react';
 import { DictionaryPopup } from './DictionaryPopup';
 import { lookupTerm, type DictionaryEntry } from '../services/dictionaryService';
 import { saveLessonToFirestore, saveWordToDictionary } from '../services/firebase';
@@ -48,6 +48,9 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
   const [dictionaryList, setDictionaryList] = useState<HanViet[]>(data.han_viet_dictionary || []);
   const [lookupList, setLookupList] = useState<string[]>([]);
   const [wordSearched, setWordSearched] = useState<string>('');
+  
+  const [visualAids, setVisualAids] = useState<string[]>(Array(8).fill(''));
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Phân tách từ, dấu câu, khoảng trắng
   const words: string[] = originalText.match(/([\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+|\s+)/gu) || [];
@@ -187,6 +190,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
       })) : [],
       keywordsLevel1: data.keywords_level_1 || [],
       keywordsLevel2: data.keywords_level_2 || [],
+      visualAids: visualAids.filter(v => v !== ''),
       createdAt: Date.now()
     };
     
@@ -230,6 +234,21 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        const newAids = [...visualAids];
+        newAids[index] = event.target.result as string;
+        setVisualAids(newAids);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const renderWord = (word: string, index: number) => {
@@ -324,8 +343,7 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
                 {dictionaryList.map((hv, idx) => (
                   <div key={idx} className="p-3 bg-krones-bg rounded-lg border-l-4 border-krones-blue hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleLookupRetry(hv.word)}>
                     <div className="font-bold text-base text-krones-navy mb-1">{hv.word}</div>
-                    <div className="text-sm font-medium text-krones-blue mb-1">{hv.root_meaning}</div>
-                    <div className="text-sm text-gray-600 italic">"{hv.logical_anchor}"</div>
+                    <div className="text-sm font-medium text-krones-blue">{hv.root_meaning}</div>
                   </div>
                 ))}
               </div>
@@ -412,6 +430,76 @@ export const LogicBridge: React.FC<LogicBridgeProps> = ({ originalText, data, in
           {words.map((word, index) => renderWord(word, index))}
         </div>
       </div>
+
+      {/* 4. Hình ảnh Giảng bài & Sơ đồ Tư duy */}
+      <div className="bg-white p-6 rounded-xl border border-krones-ice shadow-sm">
+        <h3 className="text-xl font-bold text-krones-navy mb-4 flex items-center gap-2">
+          <ImageIcon className="text-krones-blue" />
+          Hình ảnh Giảng bài & Sơ đồ Tư duy
+        </h3>
+        
+        <div className="grid grid-cols-4 md:grid-cols-4 gap-4 overflow-x-auto pb-2">
+          {visualAids.map((aid, index) => (
+            <div 
+              key={index} 
+              className="relative aspect-square border-2 border-dashed border-krones-blue/30 rounded-xl bg-[#f8fafc] flex items-center justify-center group overflow-hidden cursor-pointer hover:border-krones-blue transition-colors min-w-[80px]"
+            >
+              {aid ? (
+                <>
+                  <img 
+                    src={aid} 
+                    alt={`Visual aid ${index + 1}`} 
+                    className="w-full h-full object-cover"
+                    onClick={() => setFullscreenImage(aid)}
+                  />
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newAids = [...visualAids];
+                      newAids[index] = '';
+                      setVisualAids(newAids);
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <label className="w-full h-full flex items-center justify-center cursor-pointer text-krones-blue/50 hover:text-krones-blue transition-colors">
+                  <Plus size={24} />
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    className="hidden" 
+                    onChange={(e) => handleImageUpload(index, e)}
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Lightbox / Modal View */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button 
+            className="absolute top-6 right-6 text-white bg-white/20 hover:bg-white/40 rounded-full p-2 transition-colors"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <X size={24} />
+          </button>
+          <img 
+            src={fullscreenImage} 
+            alt="Fullscreen visual aid" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       <DictionaryPopup 
         wordSearched={wordSearched}

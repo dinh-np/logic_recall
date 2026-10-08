@@ -13,5 +13,6 @@ export interface SavedLesson {
   }>;
   keywordsLevel1: string[];
   keywordsLevel2: string[];
+  visualAids?: string[];
   createdAt: number;
 }
